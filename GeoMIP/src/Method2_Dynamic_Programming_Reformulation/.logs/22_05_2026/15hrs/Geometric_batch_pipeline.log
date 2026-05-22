@@ -1,0 +1,1 @@
+2026-05-22 15:19:42 [Geometric_batch_pipeline] CRITICAL Process-50: Fallo estructural crítico en evaluación IIT. subsistema=50 estado=100000000000000 condiciones=111111111111111 alcance=101111111111111 mecanismo=101111111111111 Unable to allocate 120. GiB for an array with shape (32768, 32768, 15) and data type float64
