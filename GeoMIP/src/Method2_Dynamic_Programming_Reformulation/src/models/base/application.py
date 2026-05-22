@@ -20,13 +20,15 @@ class Application:
         self.notacion = tipo
 
     def set_distancia(self, tipo: MetricDistance):
-        self.distancia_metrica = tipo
+        self.distancia_metrica = tipo.value if isinstance(tipo, MetricDistance) else str(tipo)
 
     def set_estados_activos(self):
         self.modo_estados = ACTIVOS
+        self.set_distancia(MetricDistance.EMD_EFECTO)
 
     def set_estados_inactivos(self):
         self.modo_estados = INACTIVOS
+        self.set_distancia(MetricDistance.EMD_CAUSA)
 
 
 aplicacion = Application()

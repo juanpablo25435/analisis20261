@@ -5,13 +5,16 @@ from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
-from pyemd import emd
 
+from src.middlewares.slogger import SafeLogger
 from src.models.enums.distance import MetricDistance
 from src.models.enums.notation import Notation
 
 from src.models.base.application import aplicacion
 from src.constants.base import ABC_START, INT_ZERO
+
+
+BASE_LOGGER = SafeLogger("method2_temporal_emd")
 
 
 # @cache
@@ -36,13 +39,75 @@ def literales(remaining_vars: NDArray[np.int8], lower: bool = False):
     )
 
 
-def seleccionar_metrica(distancia_usada: str):
+def seleccionar_metrica(distancia_usada: MetricDistance | str | None = None):
     distancias_metricas = {
         MetricDistance.EMD_EFECTO.value: emd_efecto,
         MetricDistance.EMD_CAUSA.value: emd_causal,
-        # ...otras
+        MetricDistance.EMD_INTEGRADA.value: emd_integrada,
     }
-    return distancias_metricas[distancia_usada]
+    distancia = resolver_tiempo_emd(distancia_usada)
+    if distancia not in distancias_metricas:
+        opciones = ", ".join(sorted(distancias_metricas.keys()))
+        raise ValueError(
+            f"Tiempo EMD no soportado: '{distancia}'. Opciones disponibles: {opciones}"
+        )
+    return distancias_metricas[distancia]
+
+
+def resolver_tiempo_emd(distancia_usada: MetricDistance | str | None = None) -> str:
+    if distancia_usada is not None:
+        return (
+            distancia_usada.value
+            if isinstance(distancia_usada, MetricDistance)
+            else str(distancia_usada)
+        )
+    distancia_configurada = aplicacion.distancia_metrica
+    return (
+        distancia_configurada.value
+        if isinstance(distancia_configurada, MetricDistance)
+        else str(distancia_configurada)
+    )
+
+
+def generar_tpm_causal(tpm_forward: NDArray) -> NDArray[np.float32]:
+    """
+    Construye P(X_{t-1}^j=1 | X_t=y) desde P(X_t^j=1 | X_{t-1}=x).
+    """
+    tpm_forward = np.asarray(tpm_forward, dtype=np.float64)
+    if tpm_forward.ndim != 2:
+        raise ValueError("La TPM forward debe ser una matriz 2D estado->nodo.")
+
+    num_estados, num_nodos = tpm_forward.shape
+    if num_estados != 1 << num_nodos:
+        raise ValueError(
+            "La TPM forward debe tener 2^n filas para n columnas/nodos."
+        )
+    if np.any((tpm_forward < 0) | (tpm_forward > 1)):
+        raise ValueError("La TPM forward contiene probabilidades fuera de [0, 1].")
+
+    estados = np.arange(num_estados, dtype=np.uint64)
+    shifts = np.arange(num_nodos, dtype=np.uint64)
+    bits_estado = ((estados[:, None] >> shifts) & 1).astype(np.float64)
+
+    # Expandimos la TPM factorizada a P(X_t=y | X_{t-1}=x)
+    # multiplicando nodos bajo independencia condicional.
+    probs_on = tpm_forward[:, None, :]
+    bits_futuros = bits_estado[None, :, :]
+    probs_por_nodo = np.where(bits_futuros == 1, probs_on, 1 - probs_on)
+    tpm_conjunta_forward = np.prod(probs_por_nodo, axis=2)
+
+    # Prior uniforme sobre estados pasados y regla de Bayes.
+    conjunta_pasado_futuro = tpm_conjunta_forward / num_estados
+    evidencia_futuro = np.sum(conjunta_pasado_futuro, axis=0)
+    posterior_pasado_dado_futuro = np.divide(
+        conjunta_pasado_futuro.T,
+        evidencia_futuro[:, None],
+        out=np.full((num_estados, num_estados), 1 / num_estados, dtype=np.float64),
+        where=evidencia_futuro[:, None] > 0,
+    )
+
+    # Regresamos al formato estado->nodo usado por System/NCube.
+    return (posterior_pasado_dado_futuro @ bits_estado).astype(np.float32)
 
 
 def emd_efecto(u: NDArray[np.float32], v: NDArray[np.float32]) -> float:
@@ -60,15 +125,34 @@ def emd_efecto(u: NDArray[np.float32], v: NDArray[np.float32]) -> float:
     return np.sum(np.abs(u - v))
 
 
+def emd_integrada(u: NDArray[np.float32], v: NDArray[np.float32]) -> float:
+    if u.size != v.size or u.size % 2 != 0:
+        raise ValueError("EMD integrada requiere distribuciones concatenadas pares.")
+
+    mitad = u.size // 2
+    return emd_efecto(u[:mitad], v[:mitad]) + emd_causal(u[mitad:], v[mitad:])
+
+
 def emd_causal(u: NDArray[np.float64], v: NDArray[np.float64]) -> float:
     """
     Calculate the Earth Mover's Distance (EMD) between two probability distributions u and v.
     The Hamming distance was used as the ground metric.
     """
+    try:
+        from pyemd import emd
+    except ImportError as error:
+        BASE_LOGGER.warn(
+            "No se pudo importar pyemd para EMD causal/integrada.",
+            error,
+        )
+        raise RuntimeError("pyemd es requerido para calcular EMD causal.") from error
+
     if not all(isinstance(arr, np.ndarray) for arr in [u, v]):
         raise TypeError("u and v must be numpy arrays.")
 
-    n: int = u.size
+    u_causal = np.asarray(u, dtype=np.float64)
+    v_causal = np.asarray(v, dtype=np.float64)
+    n: int = u_causal.size
     costs: NDArray[np.float64] = np.empty((n, n))
 
     for i in range(n):
@@ -78,7 +162,7 @@ def emd_causal(u: NDArray[np.float64], v: NDArray[np.float64]) -> float:
     np.fill_diagonal(costs, INT_ZERO)
 
     cost_mat: NDArray[np.float64] = np.array(costs, dtype=np.float64)
-    return emd(u, v, cost_mat)
+    return emd(u_causal, v_causal, cost_mat)
 
 
 def hamming_distance(a: int, b: int) -> int:

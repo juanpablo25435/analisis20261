@@ -1,10 +1,16 @@
 import numpy as np
 from numpy.typing import NDArray
 
-from src.funcs.base import reindexar, seleccionar_subestado
+from src.funcs.base import (
+    generar_tpm_causal,
+    reindexar,
+    resolver_tiempo_emd,
+    seleccionar_subestado,
+)
 from src.models.enums.notation import Notation
 from src.models.core.ncube import NCube
 from src.models.core.types import PartitionSpec
+from src.models.enums.distance import MetricDistance
 
 from src.models.base.application import aplicacion
 
@@ -30,8 +36,29 @@ class System:
     ):
         if estado_inicio.size != (n_nodes := tpm.shape[COLS_IDX]):
             raise ValueError(f"Estado inicial debe tener longitud {n_nodes}")
+        tiempo_emd = resolver_tiempo_emd()
         self.estado_inicial = estado_inicio
-        self.ncubos = tuple(
+        if tiempo_emd == MetricDistance.EMD_CAUSA.value:
+            self.ncubos = self._crear_ncubos(
+                generar_tpm_causal(tpm), n_nodes, notacion
+            )
+            self._ncubos_causales: tuple[NCube, ...] | None = None
+        elif tiempo_emd == MetricDistance.EMD_INTEGRADA.value:
+            self.ncubos = self._crear_ncubos(tpm, n_nodes, notacion)
+            self._ncubos_causales = self._crear_ncubos(
+                generar_tpm_causal(tpm), n_nodes, notacion
+            )
+        else:
+            self.ncubos = self._crear_ncubos(tpm, n_nodes, notacion)
+            self._ncubos_causales = None
+
+    @staticmethod
+    def _crear_ncubos(
+        tpm: np.ndarray,
+        n_nodes: int,
+        notacion: str,
+    ) -> tuple[NCube, ...]:
+        return tuple(
             NCube(
                 indice=i,
                 dims=np.array(range(n_nodes), dtype=np.int8),
@@ -141,6 +168,15 @@ class System:
             for cube in self.ncubos
             if cube.indice not in indices_validos
         )
+        nuevo_sis._ncubos_causales = (
+            tuple(
+                cube.condicionar(indices_validos, self.estado_inicial)
+                for cube in self._ncubos_causales
+                if cube.indice not in indices_validos
+            )
+            if self._ncubos_causales is not None
+            else None
+        )
         return nuevo_sis
 
     def substraer(
@@ -220,6 +256,15 @@ class System:
             for cube in self.ncubos
             if cube.indice in valid_futures
         )
+        new_sys._ncubos_causales = (
+            tuple(
+                cube.marginalizar(mecanismo_dims)
+                for cube in self._ncubos_causales
+                if cube.indice in valid_futures
+            )
+            if self._ncubos_causales is not None
+            else None
+        )
         return new_sys
 
     def bipartir(
@@ -286,6 +331,22 @@ class System:
             )
             for cubo in self.ncubos
         )
+        new_sys._ncubos_causales = (
+            tuple(
+                cubo.marginalizar(
+                    np.setdiff1d(
+                        cubo.dims,
+                        np.array(
+                            spec.mecanismos[bloque_por_indice[int(cubo.indice)]],
+                            dtype=np.int8,
+                        ),
+                    )
+                )
+                for cubo in self._ncubos_causales
+            )
+            if self._ncubos_causales is not None
+            else None
+        )
         return new_sys
 
     def distribucion_marginal(self):
@@ -295,10 +356,18 @@ class System:
         Returns:
             NDArray[np.float32]: Este arreglo contiene cada elemento/variable de forma ordenada y consecutiva seleccionado específicamente en la clave formada por el estado inicial.
         """
-        probabilidad: float
-        distribuciones = np.empty(self.indices_ncubos.size, dtype=np.float32)
+        distribuciones = self._distribucion_marginal(self.ncubos)
+        if self._ncubos_causales is None:
+            return distribuciones
+        return np.concatenate(
+            [distribuciones, self._distribucion_marginal(self._ncubos_causales)]
+        )
 
-        for i, ncubo in enumerate(self.ncubos):
+    def _distribucion_marginal(self, ncubos: tuple[NCube, ...]) -> NDArray[np.float32]:
+        probabilidad: float
+        distribuciones = np.empty(len(ncubos), dtype=np.float32)
+
+        for i, ncubo in enumerate(ncubos):
             probabilidad = ncubo.data
             if ncubo.dims.size:
                 sub_estado_inicial = tuple(self.estado_inicial[j] for j in ncubo.dims)

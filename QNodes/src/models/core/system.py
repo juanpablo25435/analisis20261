@@ -33,30 +33,48 @@ class System:
         estado_inicio: np.ndarray,
     ):
         num_nodos = self.validacion_inicial(tpm, estado_inicio)
-        tpm_procesada = (
-            generar_tpm_causal(tpm)
-            if resolver_tiempo_emd() == TimeEMD.EMD_CAUSA.value
-            else tpm
-        )
+        tiempo_emd = resolver_tiempo_emd()
         self.estado_inicial = estado_inicio
         notacion_llegada = (
             aplicacion.indexado_llegada.value
             if isinstance(aplicacion.indexado_llegada, Notation)
             else str(aplicacion.indexado_llegada)
         )
-        self.ncubos = tuple(
+
+        if tiempo_emd == TimeEMD.EMD_CAUSA.value:
+            self.ncubos = self._crear_ncubos(
+                generar_tpm_causal(tpm), num_nodos, notacion_llegada
+            )
+            self._ncubos_causales: tuple[NCube, ...] | None = None
+        elif tiempo_emd == TimeEMD.EMD_INTEGRADA.value:
+            self.ncubos = self._crear_ncubos(tpm, num_nodos, notacion_llegada)
+            self._ncubos_causales = self._crear_ncubos(
+                generar_tpm_causal(tpm), num_nodos, notacion_llegada
+            )
+        else:
+            self.ncubos = self._crear_ncubos(tpm, num_nodos, notacion_llegada)
+            self._ncubos_causales = None
+
+        self.memo = {}
+
+    @staticmethod
+    def _crear_ncubos(
+        tpm: np.ndarray,
+        num_nodos: int,
+        notacion_llegada: str,
+    ) -> tuple[NCube, ...]:
+        return tuple(
             NCube(
                 indice=idx,
                 dims=np.array(range(num_nodos), dtype=np.int8),
                 data=(
-                    tpm_procesada[:, idx]
+                    tpm[:, idx]
                     if notacion_llegada == Notation.LIL_ENDIAN.value
-                    else tpm_procesada[:, idx][reindexar(num_nodos)]
+                    else tpm[:, idx][reindexar(num_nodos)]
                 ).reshape((BASE_TWO,) * num_nodos),
             )
             for idx in range(num_nodos)
         )
-        self.memo = {}
 
     def validacion_inicial(self, tpm: np.ndarray, estado_inicio: np.ndarray):
         if estado_inicio.size != (num_nodos := tpm.shape[COLS_IDX]):
@@ -163,6 +181,15 @@ class System:
             for cube in self.ncubos
             if cube.indice not in indices_validos
         )
+        nuevo_sistema._ncubos_causales = (
+            tuple(
+                cube.condicionar(indices_validos, self.estado_inicial)
+                for cube in self._ncubos_causales
+                if cube.indice not in indices_validos
+            )
+            if self._ncubos_causales is not None
+            else None
+        )
         return nuevo_sistema
 
     def substraer(
@@ -243,6 +270,15 @@ class System:
             for cube in self.ncubos
             if cube.indice in futuros_validos
         )
+        nuevo_sistema._ncubos_causales = (
+            tuple(
+                cube.marginalizar(mecanismo_dims)
+                for cube in self._ncubos_causales
+                if cube.indice in futuros_validos
+            )
+            if self._ncubos_causales is not None
+            else None
+        )
         return nuevo_sistema
 
     def bipartir(
@@ -313,6 +349,22 @@ class System:
                 for cubo in self.ncubos
             )
         nuevo_sistema.ncubos = self.memo[spec]
+        nuevo_sistema._ncubos_causales = (
+            tuple(
+                cubo.marginalizar(
+                    np.setdiff1d(
+                        cubo.dims,
+                        np.array(
+                            spec.mecanismos[bloque_por_indice[int(cubo.indice)]],
+                            dtype=np.int8,
+                        ),
+                    )
+                )
+                for cubo in self._ncubos_causales
+            )
+            if self._ncubos_causales is not None
+            else None
+        )
         return nuevo_sistema
 
     def distribucion_marginal(self):
@@ -322,10 +374,18 @@ class System:
         Returns:
             NDArray[np.float32]: Este arreglo contiene cada elemento/variable de forma ordenada y consecutiva seleccionado específicamente en la clave formada por el estado inicial.
         """
-        probabilidad: float
-        distribucion = np.empty(self.indices_ncubos.size, dtype=np.float32)
+        distribucion = self._distribucion_marginal(self.ncubos)
+        if self._ncubos_causales is None:
+            return distribucion
+        return np.concatenate(
+            [distribucion, self._distribucion_marginal(self._ncubos_causales)]
+        )
 
-        for i, ncubo in enumerate(self.ncubos):
+    def _distribucion_marginal(self, ncubos: tuple[NCube, ...]) -> NDArray[np.float32]:
+        probabilidad: float
+        distribucion = np.empty(len(ncubos), dtype=np.float32)
+
+        for i, ncubo in enumerate(ncubos):
             probabilidad = ncubo.data
             if ncubo.dims.size:
                 inicial = tuple(self.estado_inicial[j] for j in ncubo.dims)

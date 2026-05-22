@@ -175,9 +175,16 @@ def emd_efecto(u: NDArray[np.float32], v: NDArray[np.float32]) -> float:
 
 def emd_integrada(u: NDArray[np.float32], v: NDArray[np.float32]) -> float:
     """
-    EMD integrada como combinación causa-efecto sobre las mismas distribuciones.
+    EMD integrada como suma efecto + causa para distribuciones concatenadas.
+
+    `System` en modo integrado retorna `[marginales_forward, marginales_backward]`;
+    ambas mitades deben tener el mismo tamaño para evaluar la misma partición.
     """
-    return emd_efecto(u, v) + emd_causal(u, v)
+    if u.size != v.size or u.size % 2 != 0:
+        raise ValueError("EMD integrada requiere distribuciones concatenadas pares.")
+
+    mitad = u.size // 2
+    return emd_efecto(u[:mitad], v[:mitad]) + emd_causal(u[mitad:], v[mitad:])
 
 
 def emd_causal(u: NDArray[np.float64], v: NDArray[np.float64]) -> float:
