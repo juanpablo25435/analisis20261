@@ -66,7 +66,10 @@
 #     print(sia_uno)
 from src.controllers.manager import Manager
 from src.controllers.strategies.geometric import GeometricSIA
+from src.controllers.strategies.k_force import KForceSIA
 from src.controllers.strategies.q_nodes import QNodes
+from src.funcs.base import emd_causal, emd_efecto
+from src.models.base.application import aplicacion
 from src.middlewares.slogger import SafeLogger
 # Optional import: this project often runs only geometric strategy.
 try:
@@ -84,6 +87,7 @@ from pathlib import Path
 METHOD2_ROOT = Path(__file__).resolve().parents[1]
 GEOMIP_ROOT = Path(__file__).resolve().parents[3]
 BATCH_LOGGER_TAG = "Geometric_batch_pipeline"
+DEFAULT_K_MAX = 3
 
 def convertir_a_binario(texto, n_bits=20):
     posiciones = "ABCDEFGHIJKLMNOPQRST"[:n_bits]
@@ -92,6 +96,41 @@ def convertir_a_binario(texto, n_bits=20):
         if letra in posiciones:
             binario[posiciones.index(letra)] = "1"
     return "".join(binario)
+
+
+def _resultado_nulo():
+    return {
+        "particion": None,
+        "phi_efecto": None,
+        "phi_causa": None,
+        "phi_integrado": None,
+        "tiempo": None,
+    }
+
+
+def _formatear_float(valor: float | None) -> str | None:
+    return None if valor is None else str(valor).replace(".", ",")
+
+
+def _separar_phi_integrado(solucion) -> tuple[float, float, float]:
+    distribucion_subsistema = solucion.distribucion_subsistema
+    distribucion_particion = solucion.distribucion_particion
+    if (
+        distribucion_subsistema.size != distribucion_particion.size
+        or distribucion_subsistema.size % 2 != 0
+    ):
+        raise ValueError("La solución integrada no contiene distribuciones concatenadas pares.")
+
+    mitad = distribucion_subsistema.size // 2
+    phi_efecto = emd_efecto(
+        distribucion_particion[:mitad],
+        distribucion_subsistema[:mitad],
+    )
+    phi_causa = emd_causal(
+        distribucion_particion[mitad:],
+        distribucion_subsistema[mitad:],
+    )
+    return phi_efecto, phi_causa, phi_efecto + phi_causa
 
 def ejecutar_con_tiempo(
     config_sistema,
@@ -109,28 +148,30 @@ def ejecutar_con_tiempo(
         f"condiciones={condiciones} alcance={alcance} mecanismo={mecanismo}"
     )
     try:
-        analizador_fi = GeometricSIA(config_sistema)
-        sia_dos = analizador_fi.aplicar_estrategia(condiciones, alcance, mecanismo, tpm)
+        aplicacion.set_distancia_integrada()
+        analizador_fi = KForceSIA(config_sistema)
+        sia_dos = analizador_fi.aplicar_estrategia(
+            condiciones,
+            alcance,
+            mecanismo,
+            tpm=tpm,
+            k_max=DEFAULT_K_MAX,
+        )
+        phi_efecto, phi_causa, phi_integrado = _separar_phi_integrado(sia_dos)
         resultado_queue.put({
             "particion": sia_dos.particion,
-            "perdida": str(sia_dos.perdida).replace('.', ','),
-            "tiempo": str(sia_dos.tiempo_ejecucion).replace('.', ','),
+            "phi_efecto": _formatear_float(phi_efecto),
+            "phi_causa": _formatear_float(phi_causa),
+            "phi_integrado": _formatear_float(phi_integrado),
+            "tiempo": _formatear_float(sia_dos.tiempo_ejecucion),
         })
 
     except ValueError as error:
         logger.error("Error de validación dimensional/tipado en evaluación IIT.", contexto, error)
-        resultado_queue.put({
-            "particion": None,
-            "perdida": None,
-            "tiempo": None,
-        })
+        resultado_queue.put(_resultado_nulo())
     except Exception as error:
         logger.critic("Fallo estructural crítico en evaluación IIT.", contexto, error)
-        resultado_queue.put({
-            "particion": None,
-            "perdida": None,
-            "tiempo": None,
-        })
+        resultado_queue.put(_resultado_nulo())
 
 def resolver_tpm_path(estado_inicio: str) -> Path:
     """Find TPM file in common project locations based on state size."""
@@ -215,12 +256,12 @@ def ejecutar_desde_excel(
             print(f"Iteración {i} - Tiempo límite alcanzado, terminando proceso...")
             proceso.terminate()
             proceso.join()
-            resultado = {"perdida": None, "tiempo": None, "particion": None}
+            resultado = _resultado_nulo()
         else:
             resultado = (
                 resultado_queue.get()
                 if not resultado_queue.empty()
-                else {"perdida": None, "tiempo": None, "particion": None}
+                else _resultado_nulo()
             )
 
         resultados.append({
@@ -228,7 +269,9 @@ def ejecutar_desde_excel(
             "Alcance": alcance,
             "Mecanismo": mecanismo,
             "Partición": resultado["particion"],
-            "Pérdida": resultado["perdida"],
+            "Phi_Efecto": resultado["phi_efecto"],
+            "Phi_Causa": resultado["phi_causa"],
+            "Phi_Integrado": resultado["phi_integrado"],
             "Tiempo de ejecución (s)": resultado["tiempo"],
         })
     df_resultados = pd.DataFrame(resultados)

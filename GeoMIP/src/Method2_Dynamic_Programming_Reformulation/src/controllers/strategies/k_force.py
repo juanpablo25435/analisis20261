@@ -177,22 +177,22 @@ class KForceSIA(SIA):
             bloques[bloques_usados].pop()
 
     def _formatear_particion(self, spec: PartitionSpec) -> str:
-        partes = [
-            self._formatear_bloque(mecanismo, alcance)
-            for alcance, mecanismo in zip(spec.bloques, spec.mecanismos)
-        ]
-        tops, bottoms = zip(*partes)
-        return f"{''.join(tops)}\n{''.join(bottoms)}\n"
+        bloques_alcance = " / ".join(
+            self._formatear_bloque(alcance, ABECEDARY)
+            for alcance in spec.bloques
+        )
+        bloques_mecanismo = " / ".join(
+            self._formatear_bloque(mecanismo, LOWER_ABECEDARY)
+            for mecanismo in spec.mecanismos
+        )
+        return f"Alcance={bloques_alcance}; Mecanismo={bloques_mecanismo}"
 
     def _formatear_bloque(
         self,
-        mecanismo: Iterable[int],
-        alcance: Iterable[int],
-    ) -> tuple[str, str]:
-        purview = self._literales(alcance, ABECEDARY)
-        mechanism = self._literales(mecanismo, LOWER_ABECEDARY)
-        width = max(len(purview), len(mechanism)) + BASE_TWO
-        return f"⎛{purview:^{width}}⎞", f"⎝{mechanism:^{width}}⎠"
+        indices: Iterable[int],
+        labels: Iterable[str],
+    ) -> str:
+        return f"({self._literales(indices, labels)})"
 
     def _literales(self, indices: Iterable[int], labels: Iterable[str]) -> str:
         label_tuple = tuple(labels)

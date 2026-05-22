@@ -30,5 +30,8 @@ class Application:
         self.modo_estados = INACTIVOS
         self.set_distancia(MetricDistance.EMD_CAUSA)
 
+    def set_distancia_integrada(self):
+        self.set_distancia(MetricDistance.EMD_INTEGRADA)
+
 
 aplicacion = Application()
