@@ -1,4 +1,5 @@
 from collections.abc import Iterable, Iterator
+from itertools import product
 import time
 from typing import Callable
 
@@ -108,11 +109,23 @@ class KForceSIA(SIA):
     ) -> Iterator[PartitionSpec]:
         for k in range(BASE_TWO, k_max + 1):
             for bloques_futuro in self._particiones_k(futuros, k):
-                for bloques_presente in self._particiones_k(presentes, k):
+                for bloques_presente in self._asignaciones_k(presentes, k):
                     yield PartitionSpec(
                         bloques=bloques_futuro,
                         mecanismos=bloques_presente,
                     )
+
+    def _asignaciones_k(self, elementos: tuple[int, ...], k: int) -> Iterator[Bloques]:
+        for etiquetas in product(range(k), repeat=len(elementos)):
+            bloques = tuple(
+                tuple(
+                    elemento
+                    for elemento, etiqueta in zip(elementos, etiquetas)
+                    if etiqueta == bloque_idx
+                )
+                for bloque_idx in range(k)
+            )
+            yield bloques
 
     def _particiones_k(self, elementos: tuple[int, ...], k: int) -> Iterator[Bloques]:
         if k < 1 or k > len(elementos):
