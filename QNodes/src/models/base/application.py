@@ -43,13 +43,19 @@ class Application:
 
     def set_estados_activos(self):
         self.modo_estados = ACTIVE
+        self.set_tiempo_emd(TimeEMD.EMD_EFECTO)
 
     def set_estados_inactivos(self):
         self.modo_estados = INACTIVE
+        self.set_tiempo_emd(TimeEMD.EMD_CAUSA)
 
     def set_tiempo_emd(self, tipo: TimeEMD):
         # Normaliza siempre a string para evitar choques Enum vs .value.
         self.tiempo_emd = tipo.value if isinstance(tipo, TimeEMD) else str(tipo)
+        if self.tiempo_emd == TimeEMD.EMD_EFECTO.value:
+            self.modo_estados = ACTIVE
+        elif self.tiempo_emd == TimeEMD.EMD_CAUSA.value:
+            self.modo_estados = INACTIVE
 
     def set_distancia_metrica(self, tipo: MetricDistance):
         self.distancia_metrica = (

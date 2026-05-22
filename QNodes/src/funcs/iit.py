@@ -11,10 +11,14 @@ from src.constants.base import (
     STR_ONE,
     VOID_STR,
 )
+from src.middlewares.slogger import SafeLogger
 from src.models.base.application import aplicacion
 from src.models.enums.distance import MetricDistance
 from src.models.enums.notation import Notation
 from src.models.enums.temporal_emd import TimeEMD
+
+
+IIT_LOGGER = SafeLogger("iit_temporal_emd")
 
 
 # @cache
@@ -61,7 +65,9 @@ def literales(remaining_vars: NDArray[np.int8], lowercase: bool = False):
     )
 
 
-def seleccionar_emd() -> Callable[
+def seleccionar_emd(
+    tipo_emd: TimeEMD | str | None = None,
+) -> Callable[
     [NDArray[np.float32], NDArray[np.float32]],
     float,
 ]:
@@ -78,15 +84,10 @@ def seleccionar_emd() -> Callable[
         str, Callable[[NDArray[np.float32], NDArray[np.float32]], float]
     ] = {
         TimeEMD.EMD_EFECTO.value: emd_efecto,
-        # TimeEMD.EMD_CAUSA.value: emd_causal,
-        # ...otras
+        TimeEMD.EMD_CAUSA.value: emd_causal,
+        TimeEMD.EMD_INTEGRADA.value: emd_integrada,
     }
-
-    emd_tiempo = (
-        aplicacion.tiempo_emd.value
-        if isinstance(aplicacion.tiempo_emd, TimeEMD)
-        else str(aplicacion.tiempo_emd)
-    )
+    emd_tiempo = resolver_tiempo_emd(tipo_emd)
 
     if emd_tiempo not in emd_metricas:
         metricas_disponibles = ", ".join(sorted(emd_metricas.keys()))
@@ -96,6 +97,17 @@ def seleccionar_emd() -> Callable[
         )
 
     return emd_metricas[emd_tiempo]
+
+
+def resolver_tiempo_emd(tipo_emd: TimeEMD | str | None = None) -> str:
+    if tipo_emd is not None:
+        return tipo_emd.value if isinstance(tipo_emd, TimeEMD) else str(tipo_emd)
+    tiempo_configurado = aplicacion.tiempo_emd
+    return (
+        tiempo_configurado.value
+        if isinstance(tiempo_configurado, TimeEMD)
+        else str(tiempo_configurado)
+    )
 
 
 def emd_efecto(u: NDArray[np.float32], v: NDArray[np.float32]) -> float:
@@ -113,6 +125,13 @@ def emd_efecto(u: NDArray[np.float32], v: NDArray[np.float32]) -> float:
     return np.sum(np.abs(u - v))
 
 
+def emd_integrada(u: NDArray[np.float32], v: NDArray[np.float32]) -> float:
+    """
+    EMD integrada como combinación causa-efecto sobre las mismas distribuciones.
+    """
+    return emd_efecto(u, v) + emd_causal(u, v)
+
+
 def emd_causal(u: NDArray[np.float64], v: NDArray[np.float64]) -> float:
     """
     Implementación de la Earth Mover's Distance para el análissi desde el presente hacia el pasado.
@@ -127,24 +146,31 @@ def emd_causal(u: NDArray[np.float64], v: NDArray[np.float64]) -> float:
     """
     try:
         from pyemd import emd
+    except ImportError as error:
+        IIT_LOGGER.warn(
+            "No se pudo importar pyemd para EMD causal. "
+            "Instala la dependencia compatible antes de usar TimeEMD.EMD_CAUSA "
+            "o TimeEMD.EMD_INTEGRADA.",
+            error,
+        )
+        raise RuntimeError("pyemd es requerido para calcular EMD causal.") from error
 
-        if not all(isinstance(arr, np.ndarray) for arr in [u, v]):
-            raise TypeError("u and v must be numpy arrays.")
+    if not all(isinstance(arr, np.ndarray) for arr in [u, v]):
+        raise TypeError("u and v must be numpy arrays.")
 
-        n: int = u.size
-        coste: NDArray[np.float64] = np.empty((n, n))
-        distancia_metrica: Callable = seleccionar_distancia()
+    u_causal = np.asarray(u, dtype=np.float64)
+    v_causal = np.asarray(v, dtype=np.float64)
+    n: int = u_causal.size
+    coste: NDArray[np.float64] = np.empty((n, n))
+    distancia_metrica: Callable = seleccionar_distancia()
 
-        for i in range(n):
-            coste[i, :i] = [distancia_metrica(i, j) for j in range(i)]
-            coste[:i, i] = coste[i, :i]
-        np.fill_diagonal(coste, INT_ZERO)
+    for i in range(n):
+        coste[i, :i] = [distancia_metrica(i, j) for j in range(i)]
+        coste[:i, i] = coste[i, :i]
+    np.fill_diagonal(coste, INT_ZERO)
 
-        mat_costes: NDArray[np.float64] = np.array(coste, dtype=np.float64)
-        return emd(u, v, mat_costes)
-    except ImportError as e:
-        print(f"pyemd no está instalado correctamente: {e}")
-        return -1
+    mat_costes: NDArray[np.float64] = np.array(coste, dtype=np.float64)
+    return emd(u_causal, v_causal, mat_costes)
 
 
 def seleccionar_distancia() -> Callable[

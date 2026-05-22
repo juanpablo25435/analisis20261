@@ -67,6 +67,7 @@
 from src.controllers.manager import Manager
 from src.controllers.strategies.geometric import GeometricSIA
 from src.controllers.strategies.q_nodes import QNodes
+from src.middlewares.slogger import SafeLogger
 # Optional import: this project often runs only geometric strategy.
 try:
     from src.controllers.strategies.phi import Phi
@@ -82,6 +83,7 @@ from pathlib import Path
 
 METHOD2_ROOT = Path(__file__).resolve().parents[1]
 GEOMIP_ROOT = Path(__file__).resolve().parents[3]
+BATCH_LOGGER_TAG = "Geometric_batch_pipeline"
 
 def convertir_a_binario(texto, n_bits=20):
     posiciones = "ABCDEFGHIJKLMNOPQRST"[:n_bits]
@@ -91,7 +93,21 @@ def convertir_a_binario(texto, n_bits=20):
             binario[posiciones.index(letra)] = "1"
     return "".join(binario)
 
-def ejecutar_con_tiempo(config_sistema, condiciones, alcance, mecanismo, resultado_queue, tpm):
+def ejecutar_con_tiempo(
+    config_sistema,
+    condiciones,
+    alcance,
+    mecanismo,
+    resultado_queue,
+    tpm,
+    subsistema_id=None,
+):
+    logger = SafeLogger(BATCH_LOGGER_TAG)
+    contexto = (
+        f"subsistema={subsistema_id} "
+        f"estado={config_sistema.estado_inicial} "
+        f"condiciones={condiciones} alcance={alcance} mecanismo={mecanismo}"
+    )
     try:
         analizador_fi = GeometricSIA(config_sistema)
         sia_dos = analizador_fi.aplicar_estrategia(condiciones, alcance, mecanismo, tpm)
@@ -101,7 +117,15 @@ def ejecutar_con_tiempo(config_sistema, condiciones, alcance, mecanismo, resulta
             "tiempo": str(sia_dos.tiempo_ejecucion).replace('.', ','),
         })
 
-    except Exception as e:
+    except ValueError as error:
+        logger.error("Error de validación dimensional/tipado en evaluación IIT.", contexto, error)
+        resultado_queue.put({
+            "particion": None,
+            "perdida": None,
+            "tiempo": None,
+        })
+    except Exception as error:
+        logger.critic("Fallo estructural crítico en evaluación IIT.", contexto, error)
         resultado_queue.put({
             "particion": None,
             "perdida": None,
@@ -179,7 +203,10 @@ def ejecutar_desde_excel(
         config_sistema = Manager(estado_inicial=estado_inicio)
 
         resultado_queue = multiprocessing.Queue()
-        proceso = multiprocessing.Process(target=ejecutar_con_tiempo, args=(config_sistema, condiciones, alcance, mecanismo, resultado_queue, tpm))
+        proceso = multiprocessing.Process(
+            target=ejecutar_con_tiempo,
+            args=(config_sistema, condiciones, alcance, mecanismo, resultado_queue, tpm, i),
+        )
         
         proceso.start()
         proceso.join(timeout=3600)  

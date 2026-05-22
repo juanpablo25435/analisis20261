@@ -6,6 +6,7 @@ from src.constants.error import ERROR_ESPACIOS_INCOMPATIBLES
 from src.funcs.iit import reindexar, seleccionar_estado
 from src.models.base.application import aplicacion
 from src.models.core.ncube import NCube
+from src.models.core.types import PartitionSpec
 from src.models.enums.notation import Notation
 
 
@@ -248,23 +249,59 @@ class System:
         Returns:
             System: Se retorna una bipartición, acá es importante tener muy claro que puede o no haber pérdida con respecto al sub-sistema original y por ende, se analizará mediante una distancia métrica cono la EMD-Effect la diferencia entre las distribuciones marginales de estos dos "sistemas", apreciando si hay diferencia como una "pérdida" en la información respecto al sub-sistema original.
         """
+        dims_particion = tuple(
+            sorted({int(dim) for cubo in self.ncubos for dim in cubo.dims})
+        )
+        spec = PartitionSpec.from_bipartition(
+            alcance=alcance,
+            mecanismo=mecanismo,
+            indices_ncubos=self.indices_ncubos,
+            dims_ncubos=dims_particion,
+        )
+        return self.aplicar_particion(spec)
+
+    def aplicar_particion(self, spec: PartitionSpec) -> "System":
+        """
+        Aplica una partición k-vías sobre los n-cubos del sistema.
+
+        Cada bloque del alcance/futuro queda acoplado con el bloque del
+        mecanismo/presente en la misma posición. Para un n-cubo de un bloque,
+        se preservan las dimensiones de su mecanismo asociado y se marginalizan
+        las dimensiones cruzadas de los demás bloques.
+        """
+        bloque_por_indice = {
+            int(indice): bloque_idx
+            for bloque_idx, bloque in enumerate(spec.bloques)
+            for indice in bloque
+        }
+        indices_sin_bloque = [
+            int(cubo.indice)
+            for cubo in self.ncubos
+            if int(cubo.indice) not in bloque_por_indice
+        ]
+        if indices_sin_bloque:
+            raise ValueError(
+                f"PartitionSpec no cubre los n-cubos {indices_sin_bloque}."
+            )
+
         nuevo_sistema = System.__new__(System)
         nuevo_sistema.estado_inicial = self.estado_inicial
         nuevo_sistema.memo = self.memo
 
-        clave = tuple(alcance), tuple(mecanismo)
-        if clave not in self.memo:
-            self.memo[clave] = tuple(
-                cubo.marginalizar(np.setdiff1d(cubo.dims, mecanismo))
-                if cubo.indice in alcance
-                else cubo.marginalizar(mecanismo)
+        if spec not in self.memo:
+            self.memo[spec] = tuple(
+                cubo.marginalizar(
+                    np.setdiff1d(
+                        cubo.dims,
+                        np.array(
+                            spec.mecanismos[bloque_por_indice[int(cubo.indice)]],
+                            dtype=np.int8,
+                        ),
+                    )
+                )
                 for cubo in self.ncubos
             )
-        else:
-            self.memo[clave] = self.memo[clave]
-
-        nuevo_sistema.ncubos = self.memo[clave]
-
+        nuevo_sistema.ncubos = self.memo[spec]
         return nuevo_sistema
 
     def distribucion_marginal(self):
