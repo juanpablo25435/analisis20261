@@ -66,7 +66,7 @@
 #     print(sia_uno)
 from src.controllers.manager import Manager
 from src.controllers.strategies.geometric import GeometricSIA
-from src.controllers.strategies.k_force import KForceSIA
+from src.controllers.strategies.k_geometric import KGeometricSIA
 from src.controllers.strategies.q_nodes import QNodes
 from src.funcs.base import emd_causal, emd_efecto
 from src.models.base.application import aplicacion
@@ -87,7 +87,7 @@ from pathlib import Path
 METHOD2_ROOT = Path(__file__).resolve().parents[1]
 GEOMIP_ROOT = Path(__file__).resolve().parents[3]
 BATCH_LOGGER_TAG = "Geometric_batch_pipeline"
-DEFAULT_K_MAX = 3
+DEFAULT_K_MAX = 5
 
 def convertir_a_binario(texto, n_bits=20):
     posiciones = "ABCDEFGHIJKLMNOPQRST"[:n_bits]
@@ -149,7 +149,7 @@ def ejecutar_con_tiempo(
     )
     try:
         aplicacion.set_distancia_integrada()
-        analizador_fi = KForceSIA(config_sistema)
+        analizador_fi = KGeometricSIA(config_sistema)
         sia_dos = analizador_fi.aplicar_estrategia(
             condiciones,
             alcance,

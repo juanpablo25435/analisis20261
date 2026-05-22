@@ -134,28 +134,49 @@ def generar_tpm_causal(tpm_forward: NDArray) -> NDArray[np.float32]:
     shifts = np.arange(num_nodos, dtype=np.uint64)
     bits_estado = ((estados[:, None] >> shifts) & 1).astype(np.float64)
 
-    # 1) Expandimos P(X_t^j | X_{t-1}) a P(X_t=y | X_{t-1}=x)
-    # multiplicando las marginales de nodos bajo independencia condicional.
-    probs_on = tpm_forward[:, None, :]
-    bits_futuros = bits_estado[None, :, :]
-    probs_por_nodo = np.where(bits_futuros == 1, probs_on, 1 - probs_on)
-    tpm_conjunta_forward = np.prod(probs_por_nodo, axis=2)
+    tpm_causal = np.empty((num_estados, num_nodos), dtype=np.float32)
+    max_batch_cells = 4_000_000
+    batch_size = max(1, min(num_estados, max_batch_cells // num_estados))
 
-    # 2) Aplicamos prior uniforme sobre estados pasados: P(X_{t-1}=x)=1/2^n.
-    conjunta_pasado_futuro = tpm_conjunta_forward / num_estados
+    probs_on = tpm_forward
+    probs_off = 1 - tpm_forward
 
-    # 3) Bayes: P(X_{t-1}=x | X_t=y) = P(y|x)P(x) / P(y).
-    evidencia_futuro = np.sum(conjunta_pasado_futuro, axis=0)
-    posterior_pasado_dado_futuro = np.divide(
-        conjunta_pasado_futuro.T,
-        evidencia_futuro[:, None],
-        out=np.full((num_estados, num_estados), 1 / num_estados, dtype=np.float64),
-        where=evidencia_futuro[:, None] > 0,
-    )
+    for batch_start in range(0, num_estados, batch_size):
+        batch_end = min(batch_start + batch_size, num_estados)
+        bits_futuros = bits_estado[batch_start:batch_end]
 
-    # 4) Volvemos al formato factorizado estado->nodo marginalizando
-    # P(X_{t-1}=x | X_t=y) sobre estados pasados donde cada nodo está ON.
-    return (posterior_pasado_dado_futuro @ bits_estado).astype(np.float32)
+        # 1) Expandimos P(X_t^j | X_{t-1}) a P(X_t=y | X_{t-1}=x)
+        # por lotes. Solo existe una matriz (S,B), nunca el tensor (S,S,N).
+        likelihood = np.ones(
+            (num_estados, batch_end - batch_start),
+            dtype=np.float64,
+        )
+        for nodo in range(num_nodos):
+            likelihood *= np.where(
+                bits_futuros[None, :, nodo] == 1,
+                probs_on[:, None, nodo],
+                probs_off[:, None, nodo],
+            )
+
+        # 2) Con prior uniforme, Bayes cancela el factor 1/S:
+        # P(x_{t-1}|y) = P(y|x_{t-1}) / sum_x P(y|x).
+        evidencia = np.sum(likelihood, axis=0)
+
+        # 3) Volvemos al formato factorizado estado->nodo:
+        # E[bit_i(X_{t-1}) | X_t=y] para todos los nodos i del batch.
+        numeradores = likelihood.T @ bits_estado
+        tpm_causal[batch_start:batch_end] = np.divide(
+            numeradores,
+            evidencia[:, None],
+            out=np.full(
+                (batch_end - batch_start, num_nodos),
+                1 / 2,
+                dtype=np.float64,
+            ),
+            where=evidencia[:, None] > 0,
+        ).astype(np.float32)
+
+    return tpm_causal
 
 
 def emd_efecto(u: NDArray[np.float32], v: NDArray[np.float32]) -> float:
