@@ -110,6 +110,54 @@ def resolver_tiempo_emd(tipo_emd: TimeEMD | str | None = None) -> str:
     )
 
 
+def generar_tpm_causal(tpm_forward: NDArray) -> NDArray[np.float32]:
+    """
+    Construye una TPM factorizada hacia el pasado mediante la regla de Bayes.
+
+    La entrada representa P(X_t^j=1 | X_{t-1}=x) por fila de estado pasado y
+    columna de nodo futuro. La salida conserva el formato arquitectónico:
+    P(X_{t-1}^j=1 | X_t=y) por fila de estado actual/futuro y nodo pasado.
+    """
+    tpm_forward = np.asarray(tpm_forward, dtype=np.float64)
+    if tpm_forward.ndim != 2:
+        raise ValueError("La TPM forward debe ser una matriz 2D estado->nodo.")
+
+    num_estados, num_nodos = tpm_forward.shape
+    if num_estados != 1 << num_nodos:
+        raise ValueError(
+            "La TPM forward debe tener 2^n filas para n columnas/nodos."
+        )
+    if np.any((tpm_forward < 0) | (tpm_forward > 1)):
+        raise ValueError("La TPM forward contiene probabilidades fuera de [0, 1].")
+
+    estados = np.arange(num_estados, dtype=np.uint64)
+    shifts = np.arange(num_nodos, dtype=np.uint64)
+    bits_estado = ((estados[:, None] >> shifts) & 1).astype(np.float64)
+
+    # 1) Expandimos P(X_t^j | X_{t-1}) a P(X_t=y | X_{t-1}=x)
+    # multiplicando las marginales de nodos bajo independencia condicional.
+    probs_on = tpm_forward[:, None, :]
+    bits_futuros = bits_estado[None, :, :]
+    probs_por_nodo = np.where(bits_futuros == 1, probs_on, 1 - probs_on)
+    tpm_conjunta_forward = np.prod(probs_por_nodo, axis=2)
+
+    # 2) Aplicamos prior uniforme sobre estados pasados: P(X_{t-1}=x)=1/2^n.
+    conjunta_pasado_futuro = tpm_conjunta_forward / num_estados
+
+    # 3) Bayes: P(X_{t-1}=x | X_t=y) = P(y|x)P(x) / P(y).
+    evidencia_futuro = np.sum(conjunta_pasado_futuro, axis=0)
+    posterior_pasado_dado_futuro = np.divide(
+        conjunta_pasado_futuro.T,
+        evidencia_futuro[:, None],
+        out=np.full((num_estados, num_estados), 1 / num_estados, dtype=np.float64),
+        where=evidencia_futuro[:, None] > 0,
+    )
+
+    # 4) Volvemos al formato factorizado estado->nodo marginalizando
+    # P(X_{t-1}=x | X_t=y) sobre estados pasados donde cada nodo está ON.
+    return (posterior_pasado_dado_futuro @ bits_estado).astype(np.float32)
+
+
 def emd_efecto(u: NDArray[np.float32], v: NDArray[np.float32]) -> float:
     """
     Solución analítica de la Earth Mover's Distance basada en variables independientes condicionalmente y la EMD como distribuciones marginales de probabilidad.

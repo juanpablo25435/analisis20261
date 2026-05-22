@@ -3,11 +3,17 @@ from numpy.typing import NDArray
 
 from src.constants.base import BASE_TWO, COLS_IDX, INT_ZERO
 from src.constants.error import ERROR_ESPACIOS_INCOMPATIBLES
-from src.funcs.iit import reindexar, seleccionar_estado
+from src.funcs.iit import (
+    generar_tpm_causal,
+    reindexar,
+    resolver_tiempo_emd,
+    seleccionar_estado,
+)
 from src.models.base.application import aplicacion
 from src.models.core.ncube import NCube
 from src.models.core.types import PartitionSpec
 from src.models.enums.notation import Notation
+from src.models.enums.temporal_emd import TimeEMD
 
 
 class System:
@@ -27,6 +33,11 @@ class System:
         estado_inicio: np.ndarray,
     ):
         num_nodos = self.validacion_inicial(tpm, estado_inicio)
+        tpm_procesada = (
+            generar_tpm_causal(tpm)
+            if resolver_tiempo_emd() == TimeEMD.EMD_CAUSA.value
+            else tpm
+        )
         self.estado_inicial = estado_inicio
         notacion_llegada = (
             aplicacion.indexado_llegada.value
@@ -38,9 +49,9 @@ class System:
                 indice=idx,
                 dims=np.array(range(num_nodos), dtype=np.int8),
                 data=(
-                    tpm[:, idx]
+                    tpm_procesada[:, idx]
                     if notacion_llegada == Notation.LIL_ENDIAN.value
-                    else tpm[:, idx][reindexar(num_nodos)]
+                    else tpm_procesada[:, idx][reindexar(num_nodos)]
                 ).reshape((BASE_TWO,) * num_nodos),
             )
             for idx in range(num_nodos)
