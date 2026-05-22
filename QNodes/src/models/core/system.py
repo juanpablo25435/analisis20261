@@ -36,9 +36,11 @@ class System:
             NCube(
                 indice=idx,
                 dims=np.array(range(num_nodos), dtype=np.int8),
-                data=tpm[:, idx].reshape((BASE_TWO,) * num_nodos)
-                if notacion_llegada == Notation.LIL_ENDIAN.value
-                else tpm[idx, :][reindexar(num_nodos)].reshape((BASE_TWO,) * num_nodos),
+                data=(
+                    tpm[:, idx]
+                    if notacion_llegada == Notation.LIL_ENDIAN.value
+                    else tpm[:, idx][reindexar(num_nodos)]
+                ).reshape((BASE_TWO,) * num_nodos),
             )
             for idx in range(num_nodos)
         )

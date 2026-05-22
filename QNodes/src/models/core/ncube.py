@@ -1,9 +1,10 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from functools import lru_cache
 from numpy.typing import NDArray
 import numpy as np
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class NCube:
     """
     N-cubo hace referencia a un cubo n-dimensional, donde estarán indexados según la posición de precedencia de los datos, permitiendo el rápido acceso y operación en memoria.
@@ -15,7 +16,6 @@ class NCube:
     indice: int
     dims: NDArray[np.int8]
     data: np.ndarray
-    memo: dict[tuple[tuple[int, int], ...], np.ndarray] = field(default_factory=dict)
 
     def __post_init__(self):
         """Validación de tamaño y dimensionalidad tras inicialización.
@@ -125,27 +125,26 @@ class NCube:
 
             Se han agrupado los valores del n-cubo por promedio, dejando los remanentes en la dimension 0.
         """
-        if tuple(ejes) not in self.memo:
-            marginable_axis = np.intersect1d(ejes, self.dims)
-            if not marginable_axis.size:
-                return self
-            numero_dims = self.dims.size - 1
-            ejes_locales = tuple(
-                numero_dims - dim_idx
-                for dim_idx, axis in enumerate(self.dims)
-                if axis in marginable_axis
-            )
-            new_dims = np.array(
-                [d for d in self.dims if d not in marginable_axis],
-                dtype=np.int8,
-            )
-            self.memo[tuple(ejes)] = (
-                np.mean(self.data, axis=ejes_locales, keepdims=False),
-                new_dims,
-            )
+        return self._marginalizar(tuple(int(eje) for eje in ejes))
+
+    @lru_cache(maxsize=None)
+    def _marginalizar(self, ejes: tuple[int, ...]) -> "NCube":
+        marginable_axis = np.intersect1d(np.array(ejes, dtype=np.int8), self.dims)
+        if not marginable_axis.size:
+            return self
+        numero_dims = self.dims.size - 1
+        ejes_locales = tuple(
+            numero_dims - dim_idx
+            for dim_idx, axis in enumerate(self.dims)
+            if axis in marginable_axis
+        )
+        new_dims = np.array(
+            [d for d in self.dims if d not in marginable_axis],
+            dtype=np.int8,
+        )
         return NCube(
-            data=self.memo[tuple(ejes)][0],
-            dims=self.memo[tuple(ejes)][1],
+            data=np.mean(self.data, axis=ejes_locales, keepdims=False),
+            dims=new_dims,
             indice=self.indice,
         )
 

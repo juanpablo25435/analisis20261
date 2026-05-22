@@ -1,9 +1,10 @@
 from dataclasses import dataclass
+from functools import lru_cache
 from numpy.typing import NDArray
 import numpy as np
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class NCube:
     """
     N-cubo hace referencia a un cubo n-dimensional, donde estarán indexados según la posición de precedencia de los datos, permitiendo el rápido acceso y operación en memoria.
@@ -130,7 +131,11 @@ class NCube:
             Se han agrupado los valores del n-cubo por promedio, dejando los remanentes en la dimension 0.
         """
 
-        marginable_axis = np.intersect1d(ejes, self.dims)
+        return self._marginalizar(tuple(int(eje) for eje in ejes))
+
+    @lru_cache(maxsize=None)
+    def _marginalizar(self, ejes: tuple[int, ...]) -> "NCube":
+        marginable_axis = np.intersect1d(np.array(ejes, dtype=np.int8), self.dims)
         if not marginable_axis.size:
             return self
         numero_dims = self.dims.size - 1
