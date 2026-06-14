@@ -11,6 +11,7 @@ dependencies = [
     "colorama>=0.4.5",
     "numpy>=1.26.4",
     "pyemd>=1.1.0",
+    "pyinstrument>=5.1.2",
     "pytest>=8.0",
     "pyttsx3>=2.98",
     "ruff>=0.8.0",
