@@ -8,14 +8,14 @@ import time
 from src.controllers.manager import Manager
 
 from src.models.base.sia import SIA
-from src.models.core.system import System
-from src.models.core.solution import Solution
+from shared_core.models.core.system import System
+from shared_core.models.core.solution import Solution
 
-from src.middlewares.slogger import SafeLogger
+from shared_core.middlewares.slogger import SafeLogger
 from src.middlewares.profile import profile, profiler_manager
 
-from src.funcs.base import seleccionar_metrica, literales
-from src.funcs.format import fmt_biparticion
+from shared_core.funcs.iit import seleccionar_metrica, literales
+from shared_core.funcs.format import fmt_biparticion
 from src.funcs.system import (
     biparticiones,
     generar_candidatos,

@@ -23,28 +23,19 @@ def _validar_bloques_disjuntos(
 
 @dataclass(frozen=True)
 class PartitionSpec:
-    """
-    Especificación inmutable de una partición k-vías.
-
-    `bloques` representa los bloques del alcance/futuro. Cuando no se proveen
-    `mecanismos`, se asume la misma partición para el mecanismo/presente.
-    """
+    """Immutable k-way partition specification."""
 
     bloques: tuple[tuple[int, ...], ...]
     mecanismos: tuple[tuple[int, ...], ...] = ()
 
     def __post_init__(self) -> None:
         bloques = _normalizar_bloques(self.bloques)
-        mecanismos = (
-            _normalizar_bloques(self.mecanismos) if self.mecanismos else bloques
-        )
+        mecanismos = _normalizar_bloques(self.mecanismos) if self.mecanismos else bloques
 
         if not bloques:
             raise ValueError("PartitionSpec requiere al menos un bloque.")
         if len(bloques) != len(mecanismos):
-            raise ValueError(
-                "PartitionSpec requiere igual cantidad de bloques y mecanismos."
-            )
+            raise ValueError("PartitionSpec requiere igual cantidad de bloques y mecanismos.")
 
         _validar_bloques_disjuntos("bloques", bloques)
         _validar_bloques_disjuntos("mecanismos", mecanismos)
@@ -76,8 +67,6 @@ class PartitionSpec:
             ),
             mecanismos=(
                 bloque_mecanismo,
-                tuple(
-                    int(dim) for dim in dims_ncubos if int(dim) not in mecanismo_set
-                ),
+                tuple(int(dim) for dim in dims_ncubos if int(dim) not in mecanismo_set),
             ),
         )

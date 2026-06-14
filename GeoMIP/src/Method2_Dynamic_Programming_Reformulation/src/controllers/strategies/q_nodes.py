@@ -1,14 +1,14 @@
 import time
 from typing import Union
 import numpy as np
-from src.middlewares.slogger import SafeLogger
-from src.funcs.base import emd_efecto, ABECEDARY
+from shared_core.middlewares.slogger import SafeLogger
+from shared_core.funcs.iit import emd_efecto, ABECEDARY
 from src.middlewares.profile import profiler_manager, profile
-from src.funcs.format import fmt_biparte_q
+from shared_core.funcs.format import fmt_biparte_q
 from src.controllers.manager import Manager
 from src.models.base.sia import SIA
 
-from src.models.core.solution import Solution
+from shared_core.models.core.solution import Solution
 from src.constants.models import (
     QNODES_ANALYSIS_TAG,
     QNODES_LABEL,

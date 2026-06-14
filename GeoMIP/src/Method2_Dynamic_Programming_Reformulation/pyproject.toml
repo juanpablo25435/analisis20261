@@ -13,4 +13,8 @@ dependencies = [
     "pyinstrument>=5.1.2",
     "pyphi>=1.2.0",
     "pyttsx3>=2.99",
+    "shared-core",
 ]
+
+[tool.uv.sources]
+shared-core = { path = "../../..", editable = true }

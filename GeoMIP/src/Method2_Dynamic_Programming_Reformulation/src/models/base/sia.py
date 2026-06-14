@@ -5,9 +5,9 @@ import numpy as np
 import numpy.typing as NDArray
 
 from src.constants.models import SIA_PREPARATION_TAG
-from src.middlewares.slogger import SafeLogger
+from shared_core.middlewares.slogger import SafeLogger
 from src.controllers.manager import Manager
-from src.models.core.system import System
+from shared_core.models.core.system import System
 
 from src.constants.base import (
     COLON_DELIM,

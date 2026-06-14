@@ -1,10 +1,10 @@
 import heapq
 from src.constants.error import ERROR_INCOMPATIBLE_SIZES
-from src.models.core.system import System
+from shared_core.models.core.system import System
 from src.constants.base import NET_LABEL, STR_ZERO
-from src.funcs.base import ABECEDARY
-from src.middlewares.slogger import SafeLogger
-from src.funcs.base import emd_efecto
+from shared_core.funcs.iit import ABECEDARY
+from shared_core.middlewares.slogger import SafeLogger
+from shared_core.funcs.iit import emd_efecto
 from src.models.base.sia import SIA
 from src.constants.base import (
     ACTUAL,
@@ -17,9 +17,9 @@ from src.constants.models import (
     GEOMETRIC_STRAREGY_TAG,
 )
 from src.controllers.manager import Manager
-from src.funcs.format import fmt_biparte_q
+from shared_core.funcs.format import fmt_biparte_q
 from src.middlewares.profile import profiler_manager, profile
-from src.models.core.solution import Solution
+from shared_core.models.core.solution import Solution
 import numpy as np
 import time
 from typing import List, Dict, Tuple

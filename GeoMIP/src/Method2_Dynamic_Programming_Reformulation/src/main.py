@@ -68,9 +68,9 @@ from src.controllers.manager import Manager
 from src.controllers.strategies.geometric import GeometricSIA
 from src.controllers.strategies.k_geometric import KGeometricSIA
 from src.controllers.strategies.q_nodes import QNodes
-from src.funcs.base import emd_causal, emd_efecto
+from shared_core.funcs.iit import emd_causal, emd_efecto
 from src.models.base.application import aplicacion
-from src.middlewares.slogger import SafeLogger
+from shared_core.middlewares.slogger import SafeLogger
 # Optional import: this project often runs only geometric strategy.
 try:
     from src.controllers.strategies.phi import Phi

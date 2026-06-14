@@ -1,18 +1,18 @@
 import time
 import numpy as np
-from src.funcs.iit import ABECEDARY, lil_endian
-from src.funcs.format import fmt_biparticion_fuerza_bruta
+from shared_core.funcs.iit import ABECEDARY, lil_endian
+from shared_core.funcs.format import fmt_biparticion_fuerza_bruta
 import math
 
 from pyphi import Network, Subsystem
 from pyphi.labels import NodeLabels
 from pyphi.models.cuts import Bipartition, Part
 
-from src.middlewares.slogger import SafeLogger
+from shared_core.middlewares.slogger import SafeLogger
 from src.middlewares.profile import gestor_perfilado, profile
 
 from src.models.base.sia import SIA
-from src.models.core.solution import Solution
+from shared_core.models.core.solution import Solution
 from src.models.enums.temporal_emd import TimeEMD
 from src.models.base.application import aplicacion
 

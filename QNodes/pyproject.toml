@@ -14,4 +14,8 @@ dependencies = [
     "pyttsx3==2.98",
     "colorama==0.4.5",
     "pyemd>=1.1.0",
+    "shared-core",
 ]
+
+[tool.uv.sources]
+shared-core = { path = "..", editable = true }

@@ -14,13 +14,13 @@ from src.constants.models import (
     KFORCE_LABEL,
     KFORCE_STRAREGY_TAG,
 )
-from src.funcs.iit import ABECEDARY, LOWER_ABECEDARY, seleccionar_emd
+from shared_core.funcs.iit import ABECEDARY, LOWER_ABECEDARY, seleccionar_emd
 from src.middlewares.profile import gestor_perfilado
-from src.middlewares.slogger import SafeLogger
+from shared_core.middlewares.slogger import SafeLogger
 from src.models.base.application import aplicacion
 from src.models.base.sia import SIA
-from src.models.core.solution import Solution
-from src.models.core.types import PartitionSpec
+from shared_core.models.core.solution import Solution
+from shared_core.models.core.types import PartitionSpec
 
 
 Bloques = tuple[tuple[int, ...], ...]

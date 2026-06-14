@@ -14,14 +14,14 @@ from src.constants.models import (
     KGEOMETRIC_STRAREGY_TAG,
 )
 from src.controllers.manager import Manager
-from src.funcs.base import ABECEDARY, LOWER_ABECEDARY, seleccionar_metrica
+from shared_core.funcs.iit import ABECEDARY, LOWER_ABECEDARY, seleccionar_metrica
 from src.middlewares.profile import profiler_manager
-from src.middlewares.slogger import SafeLogger
+from shared_core.middlewares.slogger import SafeLogger
 from src.models.base.application import aplicacion
 from src.models.base.sia import SIA
-from src.models.core.ncube import NCube
-from src.models.core.solution import Solution
-from src.models.core.types import PartitionSpec
+from shared_core.models.core.ncube import NCube
+from shared_core.models.core.solution import Solution
+from shared_core.models.core.types import PartitionSpec
 from src.models.enums.distance import MetricDistance
 
 
