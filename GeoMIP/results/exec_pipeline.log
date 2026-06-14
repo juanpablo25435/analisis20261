@@ -1,0 +1,33 @@
+Uninstalled 1 package in 58ms
+warning: Failed to hardlink files; falling back to full copy. This may lead to degraded performance.
+         If the cache and target directories are on different filesystems, hardlinking may not be supported.
+         If this is intentional, set `export UV_LINK_MODE=copy` or use `--link-mode=copy` to suppress this warning.
+Installed 1 package in 7ms
+CRITICAL (16:36:58): Original creado.
+CRITICAL (16:36:58): Original:
+CRITICAL (16:36:58): Candidato creado.
+CRITICAL (16:36:58): Subsistema creado.
+CRITICAL (16:38:32): Original creado.
+CRITICAL (16:38:32): Original:
+CRITICAL (16:38:32): Candidato creado.
+CRITICAL (16:38:32): Subsistema creado.
+CRITICAL (16:39:59): Original creado.
+CRITICAL (16:39:59): Original:
+CRITICAL (16:39:59): Candidato creado.
+CRITICAL (16:39:59): Subsistema creado.
+CRITICAL (16:41:25): Original creado.
+CRITICAL (16:41:25): Original:
+CRITICAL (16:41:25): Candidato creado.
+CRITICAL (16:41:25): Subsistema creado.
+CRITICAL (16:42:51): Original creado.
+CRITICAL (16:42:51): Original:
+CRITICAL (16:42:51): Candidato creado.
+CRITICAL (16:42:51): Subsistema creado.
+CRITICAL (16:44:21): Original creado.
+CRITICAL (16:44:21): Original:
+CRITICAL (16:44:21): Candidato creado.
+CRITICAL (16:44:21): Subsistema creado.
+CRITICAL (16:45:56): Original creado.
+CRITICAL (16:45:56): Original:
+CRITICAL (16:45:56): Candidato creado.
+CRITICAL (16:45:56): Subsistema creado.
