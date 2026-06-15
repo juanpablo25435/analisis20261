@@ -11,18 +11,23 @@ from src.models.base.application import aplicacion
 from src.strategies.force import BruteForce
 from src.strategies.k_force import KForceSIA
 
+from shared_core.middlewares.slogger import SafeLogger
+
 DEFAULT_STATE = "000"
 DEFAULT_PAGE = "A"
 DEFAULT_K_MAX = 3
 FLOAT_TOLERANCE = 1e-8
+LOGGER = SafeLogger("qnodes_kforce_test")
 
 
 def _print_resultado(nombre: str, perdida: float, particion: str, segundos: float) -> None:
-    print(f"\n=== {nombre} ===")
-    print(f"Phi: {perdida:.8f}")
-    print(f"Tiempo total medido: {segundos:.4f}s")
-    print("Partición:")
-    print(particion)
+    LOGGER.info(
+        f"\n=== {nombre} ===",
+        f"Phi: {perdida:.8f}",
+        f"Tiempo total medido: {segundos:.4f}s",
+        "Partición:",
+        particion,
+    )
 
 
 def main() -> None:
@@ -38,10 +43,12 @@ def main() -> None:
     gestor_redes = Manager(estado_inicial)
     tpm = gestor_redes.cargar_red()
 
-    print("Prueba KForceSIA")
-    print(f"TPM: {gestor_redes.tpm_filename}")
-    print(f"Estado inicial: {estado_inicial}")
-    print(f"Condiciones: {condiciones}, alcance: {alcance}, mecanismo: {mecanismo}")
+    LOGGER.info(
+        "Prueba KForceSIA",
+        f"TPM: {gestor_redes.tpm_filename}",
+        f"Estado inicial: {estado_inicial}",
+        f"Condiciones: {condiciones}, alcance: {alcance}, mecanismo: {mecanismo}",
+    )
 
     brute_force = BruteForce(tpm)
     inicio_brute = time.perf_counter()
@@ -78,7 +85,7 @@ def main() -> None:
     )
 
     if solucion_kforce.perdida <= solucion_brute.perdida + FLOAT_TOLERANCE:
-        print("\nValidación OK: KForceSIA encontró Phi igual o menor que BruteForce.")
+        LOGGER.info("\nValidación OK: KForceSIA encontró Phi igual o menor que BruteForce.")
         return
 
     raise AssertionError(

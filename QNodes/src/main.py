@@ -3,6 +3,10 @@ from src.controllers.manager import Manager
 # 👇 Importación de estrategias 👇 #
 from src.strategies.force import BruteForce
 
+from shared_core.middlewares.slogger import SafeLogger
+
+LOGGER = SafeLogger("qnodes_main")
+
 
 def iniciar():
     """Punto de entrada"""
@@ -25,4 +29,4 @@ def iniciar():
         alcance,
         mecanismo,
     )
-    print(sia_cero)
+    LOGGER.info(sia_cero)

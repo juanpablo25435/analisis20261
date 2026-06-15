@@ -1,17 +1,22 @@
-# Proyecto-20261
+# Proyecto-20261 / KGeoMIP
 
-Este repositorio contiene tres implementaciones principales para el analisis de MIP/IIT:
+Este repositorio contiene implementaciones y utilidades para el analisis de
+MIP/IIT con tres bloques arquitectonicos principales:
 
-1. `QNodes` (base clasica, antes referida como Proyecto-2025A)
-2. `GeoMIP/src/Method2_Dynamic_Programming_Reformulation`
+1. `shared_core/`: nucleo unificado de hipercubos, sistemas, particiones,
+   soluciones, EMD/IIT, formateo y logging compartido.
+2. `QNodes/`: enfoque submodular y ejecucion directa de casos puntuales,
+   incluyendo fuerza bruta clasica y pruebas auxiliares de k-particiones.
+3. `GeoMIP/`: enfoque geometrico masivo orientado a procesamiento batch desde
+   Excel, con `KGeometricSIA`, configuracion YAML y salida separada de Phi.
 
 ## Requisitos
 
-- Linux (probado en Ubuntu)
-- Python 3.11+ (hay entornos locales con 3.12)
+- Linux (probado en Ubuntu/WSL)
+- Python 3.11+
 - `uv` instalado
 
-Instalacion de `uv` (si no lo tienes):
+Instalacion de `uv`:
 
 ```bash
 pip install uv
@@ -19,69 +24,96 @@ pip install uv
 
 ## Estructura Rapida
 
-- `QNodes/`: ejecucion directa de un caso de prueba (`exec.py`).
-- `GeoMIP/src/Method1_GPU_Accelerated/`: procesamiento por lotes desde Excel.
-- `GeoMIP/src/Method2_Dynamic_Programming_Reformulation/`: procesamiento por lotes desde Excel.
-- `GeoMIP/data/samples/`: datasets TPM `N*.csv` usados por Method1/Method2.
-- `GeoMIP/results/`: archivos Excel de entrada/salida para Method1/Method2.
+- `shared_core/models/core/`: `System`, `NCube`, `Solution` y `PartitionSpec`.
+- `shared_core/funcs/`: funciones compartidas de EMD/IIT y formateo.
+- `shared_core/middlewares/`: `SafeLogger` y utilidades transversales.
+- `QNodes/`: flujo submodular para ejecucion directa desde `exec.py`.
+- `GeoMIP/src/Method2_Dynamic_Programming_Reformulation/`: pipeline batch de
+  Method2/KGeoMIP.
+- `GeoMIP/data/samples/`: datasets TPM `N*.csv`.
+- `GeoMIP/results/`: Excel de entrada y salidas generadas del pipeline.
+- `tests/`: pruebas automatizadas de modelos core, estrategias k y analisis
+  visual.
 
-## 1) Ejecutar QNodes
+## Entorno de Calidad
 
-### Dependencias
+Desde la raiz del repositorio:
+
+```bash
+uv sync
+uv run pytest
+uv run ruff check
+```
+
+La configuracion raiz define el paquete local `shared-core` y las herramientas
+de calidad. Los subproyectos `QNodes` y `Method2` consumen `shared-core` como
+dependencia editable.
+
+## Ejecutar QNodes
 
 Desde `QNodes/`:
 
 ```bash
-cd QNodes
 uv sync
-```
-
-### Ejecucion
-
-```bash
 uv run exec.py
 ```
 
-### Que hace
+Flujo principal:
 
-- Carga una red desde `QNodes/src/.samples/` (segun el estado inicial y pagina configurada).
-- Ejecuta estrategia `BruteForce` desde `QNodes/src/main.py`.
-- Imprime la solucion en consola.
+- `QNodes/exec.py` configura la aplicacion y pagina de muestra.
+- `QNodes/src/main.py` define el estado inicial, condiciones, alcance y
+  mecanismo de un caso puntual.
+- `Manager` carga la TPM desde `QNodes/src/.samples/`.
+- `BruteForce` prepara el subsistema usando `shared_core.System` y calcula la
+  particion minima.
 
-### Ajustes comunes
+Scripts auxiliares:
 
-Edita `QNodes/src/main.py`:
+- `QNodes/src/run_kforce_test.py`: compara `BruteForce` contra `KForceSIA`.
+- `QNodes/src/run_integrated_phi.py`: ejecuta `KForceSIA` en modo Phi integrado.
 
-- `estado_inicial`
-- `condiciones`
-- `alcance`
-- `mecanismo`
-
-Si termina muy rapido, no necesariamente es error: puede ser un caso pequeno o corte temprano cuando `phi = 0`.
-
-## 3) Ejecutar Method2_Dynamic_Programming_Reformulation
-
-### Dependencias
+## Ejecutar GeoMIP / Method2
 
 Desde `GeoMIP/src/Method2_Dynamic_Programming_Reformulation/`:
 
 ```bash
-cd GeoMIP/src/Method2_Dynamic_Programming_Reformulation
 uv sync
-```
-
-### Ejecucion
-
-```bash
 uv run exec.py
 ```
 
-### Entrada por defecto
+Entrada por defecto:
 
 - Excel entrada: `GeoMIP/results/Pruebas_Metodo2.xlsx`
-- Hoja usada actualmente: indice `8`
-- Columna subsistema: `B`
+- Configuracion: `GeoMIP/src/Method2_Dynamic_Programming_Reformulation/config.yaml`
+- TPMs: `GeoMIP/data/samples/N*.csv`
 
-### Salida por defecto
+Salida por defecto:
 
 - Excel salida: `GeoMIP/results/resultados_Geometric.xlsx`
+
+El pipeline batch esta separado en `src/pipeline/batch.py`. Lee subsistemas
+desde Excel, ejecuta `KGeometricSIA` con timeout por proceso y escribe
+`Phi_Efecto`, `Phi_Causa`, `Phi_Integrado` y la cadena de particion.
+
+## Analisis Visual
+
+`GeoMIP/src/analyze_results.py` lee `GeoMIP/results/resultados_Geometric.xlsx`
+y genera una comparacion visual de asimetria temporal entre `Phi_Efecto` y
+`Phi_Causa`:
+
+```bash
+uv run python GeoMIP/src/analyze_results.py
+```
+
+Salida:
+
+- `GeoMIP/results/phi_comparison.png`
+
+## Notas de Grafo
+
+El modulo auxiliar de video se excluye del grafo principal con
+`.code-review-graphignore`:
+
+```text
+GeoMIP/src/Method2_Dynamic_Programming_Reformulation/src/video/
+```
