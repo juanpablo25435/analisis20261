@@ -108,12 +108,3 @@ uv run python GeoMIP/src/analyze_results.py
 Salida:
 
 - `GeoMIP/results/phi_comparison.png`
-
-## Notas de Grafo
-
-El modulo auxiliar de video se excluye del grafo principal con
-`.code-review-graphignore`:
-
-```text
-GeoMIP/src/Method2_Dynamic_Programming_Reformulation/src/video/
-```
