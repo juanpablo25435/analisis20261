@@ -1,11 +1,10 @@
+import sys
 from contextlib import contextmanager
 from pathlib import Path
-import sys
 
 import numpy as np
 
 from shared_core.models.core.types import PartitionSpec
-
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 METHOD2_ROOT = REPO_ROOT / "GeoMIP" / "src" / "Method2_Dynamic_Programming_Reformulation"

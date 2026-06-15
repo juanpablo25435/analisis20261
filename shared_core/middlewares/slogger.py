@@ -1,9 +1,10 @@
 import logging
 import sys
+from collections.abc import Callable
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from colorama import Fore, Style, init
 

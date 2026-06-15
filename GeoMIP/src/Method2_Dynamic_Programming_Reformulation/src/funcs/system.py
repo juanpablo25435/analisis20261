@@ -1,5 +1,6 @@
-from itertools import product, chain, combinations, islice
-from typing import Generator, Tuple, Union
+from collections.abc import Generator
+from itertools import chain, combinations, islice, product
+
 import numpy as np
 
 
@@ -43,7 +44,7 @@ def generar_particiones(
     *,
     as_matrix: bool = False,
     as_generator: bool = True,
-) -> Union[Generator[Tuple[np.ndarray, np.ndarray], None, None], np.ndarray]:
+) -> Generator[tuple[np.ndarray, np.ndarray], None, None] | np.ndarray:
     """
     Versión para generar particiones binarias.
     Eficiente para valores grandes de M y N.

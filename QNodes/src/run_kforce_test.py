@@ -2,7 +2,6 @@ import sys
 import time
 from pathlib import Path
 
-
 QNODE_ROOT = Path(__file__).resolve().parents[1]
 if str(QNODE_ROOT) not in sys.path:
     sys.path.insert(0, str(QNODE_ROOT))
@@ -11,7 +10,6 @@ from src.controllers.manager import Manager
 from src.models.base.application import aplicacion
 from src.strategies.force import BruteForce
 from src.strategies.k_force import KForceSIA
-
 
 DEFAULT_STATE = "000"
 DEFAULT_PAGE = "A"

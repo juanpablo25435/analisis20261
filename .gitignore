@@ -54,10 +54,17 @@ htmlcov/
 dist/
 build/
 
-.log
+*.log
 # Added by code-review-graph
 .code-review-graph/
+.code-review-graphgignore
 .cursor/
 AGENTS.md
 
 .logs/
+
+# GeoMIP generated outputs
+GeoMIP/results/*.log
+GeoMIP/results/*.png
+GeoMIP/results/resultados_Geometric.xlsx
+GeoMIP/src/Method2_Dynamic_Programming_Reformulation/review/profiling/**/*.html

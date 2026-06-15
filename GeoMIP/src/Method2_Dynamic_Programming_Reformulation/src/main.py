@@ -2,9 +2,7 @@ import os
 from pathlib import Path
 
 import yaml
-
 from src.pipeline.batch import BatchConfig, ejecutar_desde_excel
-
 
 METHOD2_ROOT = Path(__file__).resolve().parents[1]
 GEOMIP_ROOT = Path(__file__).resolve().parents[3]

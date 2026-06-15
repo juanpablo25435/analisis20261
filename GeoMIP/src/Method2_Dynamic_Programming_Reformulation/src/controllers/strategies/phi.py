@@ -1,12 +1,13 @@
+import collections
+import math
 import time
+from collections.abc import Iterable, Mapping, MutableMapping, Sequence
+
 import numpy as np
-from shared_core.funcs.iit import ABECEDARY, lil_endian
-from shared_core.funcs.format import fmt_biparticion
 from src.controllers.manager import Manager
 
-import math
-import collections
-from collections.abc import Iterable, Mapping, MutableMapping, Sequence
+from shared_core.funcs.format import fmt_biparticion
+from shared_core.funcs.iit import ABECEDARY, lil_endian
 
 # Python 3.10+ moved these aliases to collections.abc; pyphi still imports from collections.
 if not hasattr(collections, "Iterable"):
@@ -21,28 +22,25 @@ if not hasattr(collections, "Sequence"):
 from pyphi import Network, Subsystem
 from pyphi.labels import NodeLabels
 from pyphi.models.cuts import Bipartition, Part
-
-from shared_core.middlewares.slogger import SafeLogger
-from src.middlewares.profile import profiler_manager, profile
-
-from src.models.base.sia import SIA
-from shared_core.models.core.solution import Solution
-from src.models.enums.distance import MetricDistance
-from src.models.base.application import aplicacion
-
-
 from src.constants.base import (
     NET_LABEL,
-    TYPE_TAG,
     STR_ONE,
+    TYPE_TAG,
 )
 from src.constants.models import (
     DUMMY_ARR,
     DUMMY_PARTITION,
+    PYPHI_ANALYSIS_TAG,
     PYPHI_LABEL,
     PYPHI_STRAREGY_TAG,
-    PYPHI_ANALYSIS_TAG,
 )
+from src.middlewares.profile import profile, profiler_manager
+from src.models.base.application import aplicacion
+from src.models.base.sia import SIA
+from src.models.enums.distance import MetricDistance
+
+from shared_core.middlewares.slogger import SafeLogger
+from shared_core.models.core.solution import Solution
 
 
 class Phi(SIA):
@@ -66,7 +64,7 @@ class Phi(SIA):
             if aplicacion.distancia_metrica == MetricDistance.EMD_EFECTO.value
             else subsistema.cause_mip(mecanismo_idx, alcance_idx)
         )
-        
+
         small_phi: float = mip.phi
         repertorio = np.array(DUMMY_ARR, dtype=np.float32)
         repertorio_partido = np.array(DUMMY_ARR, dtype=np.float32)

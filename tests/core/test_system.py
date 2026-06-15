@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
-
 from src.models.enums.notation import Notation
 from src.models.enums.temporal_emd import TimeEMD
+
 from shared_core.models.core.system import System
 
 

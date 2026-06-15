@@ -1,25 +1,31 @@
-from dataclasses import dataclass
+from __future__ import annotations
+
 import multiprocessing
-from pathlib import Path
 import re
+from dataclasses import dataclass
+from multiprocessing.queues import Queue
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
-from shared_core.funcs.iit import emd_causal, emd_efecto
-from shared_core.middlewares.slogger import SafeLogger
 from src.controllers.manager import Manager
 from src.controllers.strategies.k_geometric import KGeometricSIA
 from src.models.base.application import aplicacion
 
+from shared_core.funcs.iit import emd_causal, emd_efecto
+from shared_core.middlewares.slogger import SafeLogger
+from shared_core.models.core.solution import Solution
 
 METHOD2_ROOT = Path(__file__).resolve().parents[2]
 GEOMIP_ROOT = Path(__file__).resolve().parents[4]
 BATCH_LOGGER_TAG = "Geometric_batch_pipeline"
+ResultadoBatch = dict[str, str | None]
 
 
 @dataclass(frozen=True)
 class BatchConfig:
+    """Static parameters used to slice and evaluate Method2 Excel batches."""
+
     sheet_index: int = 8
     column: str = "B"
     skiprows: int = 3
@@ -29,7 +35,8 @@ class BatchConfig:
     count: int = 50
 
     @classmethod
-    def from_mapping(cls, values: dict | None) -> "BatchConfig":
+    def from_mapping(cls, values: dict[str, object] | None) -> BatchConfig:
+        """Build a config from YAML values while accepting Spanish legacy keys."""
         values = values or {}
         return cls(
             sheet_index=int(values.get("sheet_index", values.get("hoja", 8))),
@@ -49,22 +56,43 @@ def ejecutar_desde_excel(
     estado_inicio: str | None = None,
     condiciones: str | None = None,
 ) -> None:
+    """Read subsystems from Excel, evaluate KGeometricSIA and write results.
+
+    The function is the batch boundary for Method2. It logs the path involved
+    before re-raising read/write errors so callers and shell runs fail loudly
+    with enough context to diagnose missing files or malformed inputs.
+    """
     logger = SafeLogger(BATCH_LOGGER_TAG)
-    df = pd.read_excel(
-        ruta_excel,
-        sheet_name=config.sheet_index,
-        usecols=config.column,
-        skiprows=config.skiprows,
-        names=["Subsistema"],
-    )
+    try:
+        df = pd.read_excel(
+            ruta_excel,
+            sheet_name=config.sheet_index,
+            usecols=config.column,
+            skiprows=config.skiprows,
+            names=["Subsistema"],
+        )
+    except FileNotFoundError as error:
+        logger.error("No se encontró el Excel de entrada.", f"ruta={ruta_excel}", error)
+        raise
+    except (OSError, ValueError) as error:
+        logger.error("No se pudo leer el Excel de entrada.", f"ruta={ruta_excel}", error)
+        raise
+
     filas = df["Subsistema"].dropna().tolist()
     filas = filas[config.start : config.start + config.count]
     resultados = []
 
     estado_inicio = estado_inicio or inferir_estado_inicial()
     condiciones = condiciones or ("1" * len(estado_inicio))
-    tpm_path = resolver_tpm_path(estado_inicio)
-    tpm = np.genfromtxt(tpm_path, delimiter=",")
+    try:
+        tpm_path = resolver_tpm_path(estado_inicio)
+        tpm = np.genfromtxt(tpm_path, delimiter=",")
+    except FileNotFoundError as error:
+        logger.error("No se encontró la TPM requerida.", f"estado={estado_inicio}", error)
+        raise
+    except (OSError, ValueError) as error:
+        logger.error("No se pudo leer la TPM requerida.", f"estado={estado_inicio}", error)
+        raise
 
     for row_index, fila in enumerate(filas, start=config.start + 1):
         partes = str(fila).split("|")
@@ -102,7 +130,11 @@ def ejecutar_desde_excel(
 
     df_resultados = pd.DataFrame(resultados)
     ruta_salida.parent.mkdir(parents=True, exist_ok=True)
-    df_resultados.to_excel(ruta_salida, index=False)
+    try:
+        df_resultados.to_excel(ruta_salida, index=False)
+    except (OSError, ValueError) as error:
+        logger.error("No se pudo escribir el Excel de resultados.", f"ruta={ruta_salida}", error)
+        raise
 
 
 def ejecutar_con_tiempo(
@@ -110,11 +142,12 @@ def ejecutar_con_tiempo(
     condiciones: str,
     alcance: str,
     mecanismo: str,
-    resultado_queue,
+    resultado_queue: Queue,
     tpm: np.ndarray,
     k_max: int,
     subsistema_id: int | None = None,
 ) -> None:
+    """Run one subsystem evaluation and put a serializable result in a queue."""
     logger = SafeLogger(BATCH_LOGGER_TAG)
     contexto = (
         f"subsistema={subsistema_id} "
@@ -147,6 +180,7 @@ def ejecutar_con_tiempo(
 
 
 def convertir_a_binario(texto: str, n_bits: int = 20) -> str:
+    """Convert subsystem node labels such as 'ABC' into a fixed-width bitmask."""
     posiciones = "ABCDEFGHIJKLMNOPQRST"[:n_bits]
     binario = ["0"] * n_bits
     for letra in texto:
@@ -156,6 +190,7 @@ def convertir_a_binario(texto: str, n_bits: int = 20) -> str:
 
 
 def resolver_tpm_path(estado_inicio: str) -> Path:
+    """Resolve the TPM sample file matching the length of the initial state."""
     sample_name = f"N{len(estado_inicio)}A.csv"
     candidates = (
         METHOD2_ROOT / "src" / ".samples" / sample_name,
@@ -172,6 +207,7 @@ def resolver_tpm_path(estado_inicio: str) -> Path:
 
 
 def inferir_estado_inicial() -> str:
+    """Infer the largest available sample size and return its default state."""
     sample_dirs = (
         METHOD2_ROOT / "src" / ".samples",
         METHOD2_ROOT / ".samples",
@@ -205,7 +241,7 @@ def _ejecutar_iteracion_con_timeout(
     timeout_seconds: int,
     k_max: int,
     logger: SafeLogger,
-) -> dict[str, str | None]:
+) -> ResultadoBatch:
     resultado_queue = multiprocessing.Queue()
     proceso = multiprocessing.Process(
         target=ejecutar_con_tiempo,
@@ -245,7 +281,7 @@ def _ejecutar_iteracion_con_timeout(
     return resultado_queue.get()
 
 
-def _resultado_nulo() -> dict[str, None]:
+def _resultado_nulo() -> ResultadoBatch:
     return {
         "particion": None,
         "phi_efecto": None,
@@ -259,7 +295,8 @@ def _formatear_float(valor: float | None) -> str | None:
     return None if valor is None else str(valor).replace(".", ",")
 
 
-def _separar_phi_integrado(solucion) -> tuple[float, float, float]:
+def _separar_phi_integrado(solucion: Solution) -> tuple[float, float, float]:
+    """Split a concatenated integrated solution into effect, cause and total Phi."""
     distribucion_subsistema = solucion.distribucion_subsistema
     distribucion_particion = solucion.distribucion_particion
     if (

@@ -1,44 +1,41 @@
-from colorama import Fore
-from numpy.typing import NDArray
-from typing import Callable
-import pandas as pd
-import numpy as np
 import time
+from collections.abc import Callable
 
+import numpy as np
+import pandas as pd
+from numpy.typing import NDArray
+from src.constants.base import (
+    ACTUAL,
+    EFECTO,
+    EXCEL_EXTENSION,
+    NET_LABEL,
+    TYPE_TAG,
+)
+from src.constants.models import (
+    BRUTEFORCE_ANALYSIS_TAG,
+    BRUTEFORCE_FULL_ANALYSIS_TAG,
+    BRUTEFORCE_LABEL,
+    BRUTEFORCE_STRAREGY_TAG,
+    DUMMY_ARR,
+    DUMMY_EMD,
+    ERROR_PARTITION,
+)
 from src.controllers.manager import Manager
-
-from src.models.base.sia import SIA
-from shared_core.models.core.system import System
-from shared_core.models.core.solution import Solution
-
-from shared_core.middlewares.slogger import SafeLogger
-from src.middlewares.profile import profile, profiler_manager
-
-from shared_core.funcs.iit import seleccionar_metrica, literales
-from shared_core.funcs.format import fmt_biparticion
 from src.funcs.system import (
     biparticiones,
     generar_candidatos,
     generar_particiones,
     generar_subsistemas,
 )
+from src.middlewares.profile import profile, profiler_manager
 from src.models.base.application import aplicacion
-from src.constants.base import (
-    EXCEL_EXTENSION,
-    NET_LABEL,
-    TYPE_TAG,
-    EFECTO,
-    ACTUAL,
-)
-from src.constants.models import (
-    BRUTEFORCE_FULL_ANALYSIS_TAG,
-    BRUTEFORCE_STRAREGY_TAG,
-    BRUTEFORCE_ANALYSIS_TAG,
-    BRUTEFORCE_LABEL,
-    DUMMY_ARR,
-    DUMMY_EMD,
-    ERROR_PARTITION,
-)
+from src.models.base.sia import SIA
+
+from shared_core.funcs.format import fmt_biparticion
+from shared_core.funcs.iit import literales, seleccionar_metrica
+from shared_core.middlewares.slogger import SafeLogger
+from shared_core.models.core.solution import Solution
+from shared_core.models.core.system import System
 
 
 class BruteForce(SIA):
@@ -153,11 +150,12 @@ class BruteForce(SIA):
         # system = System(tpm, initial_state, debug_observer)
         system = System(tpm, initial_state)
         self.__analizar_candidatos(system)
-        print(f"""
-{Fore.RED}Generación finalizada!{Fore.BLUE}\nRevisa tu directorio `review/resolver/`.
-{Fore.WHITE}Tamaño de la red: {initial_state.size} nodos.
-Estado incial: {initial_state}.
-""")
+        self.logger.info(
+            "Generación finalizada!\n"
+            "Revisa tu directorio `review/resolver/`.\n"
+            f"Tamaño de la red: {initial_state.size} nodos.\n"
+            f"Estado incial: {initial_state}."
+        )
 
     def __analizar_candidatos(self, sistema: System) -> None:
         """
@@ -288,7 +286,6 @@ Estado incial: {initial_state}.
             dtype=np.float32,
         )
 
-        i, j = 1, 0
         for alcance, mecanismo in generar_particiones(m, n):
             sub_alcance = np.array([i for i, bit in enumerate(alcance) if bit])
             sub_mecanismo = np.array([i for i, bit in enumerate(mecanismo) if bit])

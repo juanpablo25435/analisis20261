@@ -1,5 +1,5 @@
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 
 def _normalizar_bloque(bloque: Iterable[int]) -> tuple[int, ...]:
@@ -51,6 +51,7 @@ class PartitionSpec:
         indices_ncubos: Iterable[int],
         dims_ncubos: Iterable[int],
     ) -> "PartitionSpec":
+        """Build a two-block spec from selected purview/mechanism subsets."""
         bloque_alcance = _normalizar_bloque(alcance)
         bloque_mecanismo = _normalizar_bloque(mecanismo)
         alcance_set = set(bloque_alcance)

@@ -1,13 +1,8 @@
-from abc import ABC, abstractmethod
 import time
+from abc import ABC, abstractmethod
 
 import numpy as np
 import numpy.typing as NDArray
-
-from src.constants.models import SIA_PREPARATION_TAG
-from shared_core.middlewares.slogger import SafeLogger
-from shared_core.models.core.system import System
-
 from src.constants.base import (
     COLS_IDX,
     FLOAT_ZERO,
@@ -16,6 +11,10 @@ from src.constants.base import (
 from src.constants.error import (
     ERROR_ESPACIOS_INCOMPATIBLES,
 )
+from src.constants.models import SIA_PREPARATION_TAG
+
+from shared_core.middlewares.slogger import SafeLogger
+from shared_core.models.core.system import System
 
 
 class SIA(ABC):

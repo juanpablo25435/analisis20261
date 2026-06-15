@@ -1,10 +1,8 @@
-import numpy as np
-
 INFTY_POS: float = float("inf")
 INFTY_NEG: float = float("-inf")
 
-INT_ZERO: int = int(0)
-INT_ONE: int = int(1)
+INT_ZERO: int = 0
+INT_ONE: int = 1
 
 FLOAT_ONE: float = float(INT_ONE)
 FLOAT_ZERO: float = float(INT_ZERO)

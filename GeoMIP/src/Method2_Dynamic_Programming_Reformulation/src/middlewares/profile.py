@@ -1,18 +1,17 @@
 import time
+from collections.abc import Callable
 from datetime import datetime
-
-from pathlib import Path
 from functools import wraps
-from typing import Optional, Callable, Any
+from pathlib import Path
+from typing import Any, Optional
+
 from pyinstrument import Profiler
 from pyinstrument.renderers import HTMLRenderer
-from src.models.base.application import aplicacion
-
-
 from src.constants.base import (
-    PROFILING_PATH,
     HTML_EXTENSION,
+    PROFILING_PATH,
 )
+from src.models.base.application import aplicacion
 
 
 class ProfilingManager:
@@ -29,7 +28,7 @@ class ProfilingManager:
         self.enabled = habilitado
         self.output_dir = dir_salida
         self.interval = intervalo
-        self.current_session: Optional[str] = None
+        self.current_session: str | None = None
         self._setup_directories()
 
     def _setup_directories(self) -> None:
@@ -83,7 +82,6 @@ class ProfilerContext:
             return
 
         self.profiler.stop()
-        duration = time.perf_counter() - self.start_time
 
         # Generar reporte HTML detalladito
         html_path = self.manager.get_output_path(f"{self.name}", HTML_EXTENSION)
@@ -99,7 +97,7 @@ class ProfilerContext:
 profiler_manager = ProfilingManager()
 
 
-def profile(name: Optional[str] = None, context: Optional[dict] = None) -> Callable:
+def profile(name: str | None = None, context: dict | None = None) -> Callable:
     """
     Decorador para perfilar funciones
 

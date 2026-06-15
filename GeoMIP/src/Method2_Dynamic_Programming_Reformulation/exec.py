@@ -1,5 +1,5 @@
-from src.models.base.application import aplicacion
 from src.main import iniciar
+from src.models.base.application import aplicacion
 
 
 def main():

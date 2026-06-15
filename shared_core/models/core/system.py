@@ -27,7 +27,8 @@ class System:
         notacion_indexado: object | None = None,
         tiempo_emd: object | None = None,
         distribucion_complementaria: bool | None = None,
-    ):
+    ) -> None:
+        """Create a system view from a TPM and an initial binary state."""
         defaults = _default_system_config()
         num_nodos = self.validacion_inicial(tpm, estado_inicio)
         self.estado_inicial = estado_inicio
@@ -93,19 +94,23 @@ class System:
         )
 
     def validacion_inicial(self, tpm: np.ndarray, estado_inicio: np.ndarray) -> int:
+        """Validate TPM/state dimensions and return the node count."""
         if estado_inicio.size != (num_nodos := tpm.shape[1]):
             raise ValueError(f"Estado inicial debe tener longitud {num_nodos}")
         return num_nodos
 
     @property
-    def indices_ncubos(self):
+    def indices_ncubos(self) -> NDArray[np.int8]:
+        """Return the node indices represented by the current n-cubes."""
         return np.array([cube.indice for cube in self.ncubos], dtype=np.int8)
 
     @property
-    def dims_ncubos(self):
-        return self.ncubos[0].dims if len(self.ncubos) > 0 else np.array([])
+    def dims_ncubos(self) -> NDArray[np.int8]:
+        """Return active dimensions for the current n-cube set."""
+        return self.ncubos[0].dims if len(self.ncubos) > 0 else np.array([], dtype=np.int8)
 
     def condicionar(self, indices: NDArray[np.int8]) -> "System":
+        """Condition selected node indices on the system initial state."""
         indices_validos = np.intersect1d(self.indices_ncubos, indices)
         if not indices_validos.size:
             return self
@@ -132,6 +137,7 @@ class System:
         mecanismo_dims: NDArray[np.int8] | None = None,
         alcance_dims: NDArray[np.int8] | None = None,
     ) -> "System":
+        """Remove future nodes outside the purview and marginalize mechanism dims."""
         alcance = alcance_idx if alcance_idx is not None else alcance_dims
         if alcance is None or mecanismo_dims is None:
             raise TypeError("substraer requiere alcance_idx/alcance_dims y mecanismo_dims.")
@@ -159,6 +165,7 @@ class System:
         alcance: NDArray[np.int8],
         mecanismo: NDArray[np.int8],
     ) -> "System":
+        """Apply a two-way partition over purview and mechanism complements."""
         dims_particion = tuple(
             sorted({int(dim) for cubo in self.ncubos for dim in cubo.dims})
         )
@@ -171,6 +178,7 @@ class System:
         return self.aplicar_particion(spec)
 
     def aplicar_particion(self, spec: PartitionSpec) -> "System":
+        """Apply a k-way partition specification to the current system."""
         bloque_por_indice = {
             int(indice): bloque_idx
             for bloque_idx, bloque in enumerate(spec.bloques)
@@ -217,7 +225,8 @@ class System:
         )
         return nuevo_sistema
 
-    def distribucion_marginal(self):
+    def distribucion_marginal(self) -> NDArray[np.float32]:
+        """Return the marginal distribution for effect or integrated mode."""
         distribucion = self._distribucion_marginal(self.ncubos)
         if self._ncubos_causales is None:
             return distribucion
@@ -263,7 +272,7 @@ class System:
 def _default_system_config() -> dict[str, object]:
     try:
         from src.models.base.application import aplicacion
-    except Exception:
+    except (ImportError, ModuleNotFoundError):
         return {
             "notacion_llegada": LITTLE_ENDIAN,
             "notacion_indexado": LITTLE_ENDIAN,

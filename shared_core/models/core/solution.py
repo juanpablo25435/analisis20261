@@ -1,5 +1,4 @@
 from threading import Thread
-from typing import Optional
 
 import numpy as np
 import pyttsx3
@@ -7,8 +6,11 @@ from colorama import Fore, Style, init
 from pyttsx3.engine import Engine
 from pyttsx3.voice import Voice
 
+from shared_core.middlewares.slogger import SafeLogger
 
 init()
+
+LOGGER = SafeLogger("solution")
 
 
 class Solution:
@@ -24,7 +26,7 @@ class Solution:
         tiempo_total: float = 0.0,
         quiere_hablar: bool | None = None,
         hablar: bool | None = None,
-        voz: Optional[str] = None,
+        voz: str | None = None,
     ) -> None:
         self.estrategia = estrategia
         self.perdida = perdida
@@ -37,7 +39,7 @@ class Solution:
             True if quiere_hablar is None else quiere_hablar
         )
 
-    def __obtener_voz_espanol(self, motor: Engine) -> Optional[str]:
+    def __obtener_voz_espanol(self, motor: Engine) -> str | None:
         voces: list[Voice] = motor.getProperty("voices")
         prioridades = [
             ("sabina", "méxico"),
@@ -59,6 +61,7 @@ class Solution:
         return voces[0].id if voces else None
 
     def __anunciar_solucion(self) -> None:
+        """Announce the solution through the local TTS engine when enabled."""
         try:
             motor = pyttsx3.init()
             id_voz = self.id_voz or self.__obtener_voz_espanol(motor)
@@ -74,8 +77,8 @@ class Solution:
             )
             motor.say(mensaje)
             motor.runAndWait()
-        except Exception as error:
-            print(f"Error al inicializar el motor de voz: {error}")
+        except (AttributeError, OSError, RuntimeError, ValueError) as error:
+            LOGGER.error(f"Error al inicializar el motor de voz: {error}")
 
     def __str__(self) -> str:
         espaciado = 64
@@ -144,7 +147,7 @@ class Solution:
 def _application_labels() -> tuple[object, object]:
     try:
         from src.models.base.application import aplicacion
-    except Exception:
+    except (ImportError, ModuleNotFoundError):
         return "", ""
     return (
         getattr(aplicacion, "distancia_metrica", ""),

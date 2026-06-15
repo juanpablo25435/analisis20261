@@ -1,11 +1,9 @@
-from collections.abc import Iterable, Iterator
-from itertools import product
 import time
-from typing import Callable
+from collections.abc import Callable, Iterable, Iterator
+from itertools import product
 
 import numpy as np
 from numpy.typing import NDArray
-
 from src.constants.base import BASE_TWO, COLON_DELIM, NET_LABEL, VOID_STR
 from src.constants.models import (
     DUMMY_ARR,
@@ -15,14 +13,14 @@ from src.constants.models import (
     KFORCE_STRAREGY_TAG,
 )
 from src.controllers.manager import Manager
-from shared_core.funcs.iit import ABECEDARY, LOWER_ABECEDARY, seleccionar_metrica
 from src.middlewares.profile import profiler_manager
-from shared_core.middlewares.slogger import SafeLogger
 from src.models.base.application import aplicacion
 from src.models.base.sia import SIA
+
+from shared_core.funcs.iit import ABECEDARY, LOWER_ABECEDARY, seleccionar_metrica
+from shared_core.middlewares.slogger import SafeLogger
 from shared_core.models.core.solution import Solution
 from shared_core.models.core.types import PartitionSpec
-
 
 Bloques = tuple[tuple[int, ...], ...]
 

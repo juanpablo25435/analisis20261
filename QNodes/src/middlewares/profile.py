@@ -1,18 +1,17 @@
 import time
+from collections.abc import Callable
 from datetime import datetime
-
-from pathlib import Path
 from functools import wraps
-from typing import Optional, Callable, Any
+from pathlib import Path
+from typing import Any, Optional
+
 from pyinstrument import Profiler
 from pyinstrument.renderers import HTMLRenderer
-from src.models.base.application import aplicacion
-
-
 from src.constants.base import (
-    PATH_PROFILING,
     HTML_EXTENSION,
+    PATH_PROFILING,
 )
+from src.models.base.application import aplicacion
 
 
 class ProfilingManager:
@@ -29,7 +28,7 @@ class ProfilingManager:
         self.enabled = habilitado
         self.output_dir = dir_salida
         self.interval = intervalo
-        self.current_session: Optional[str] = None
+        self.current_session: str | None = None
         self._setup_directories()
 
     def _setup_directories(self) -> None:
@@ -98,7 +97,7 @@ class ProfilerContext:
 gestor_perfilado = ProfilingManager()
 
 
-def profile(name: Optional[str] = None, context: Optional[dict] = None) -> Callable:
+def profile(name: str | None = None, context: dict | None = None) -> Callable:
     """
     Decorador para perfilar funciones a nivel de llamados y ejecuciones.
 

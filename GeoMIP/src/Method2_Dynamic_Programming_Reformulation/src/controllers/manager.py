@@ -1,18 +1,21 @@
+import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
-import time
-import os
 
 import numpy as np
-
-from src.models.base.application import aplicacion
 from src.constants.base import (
     ABC_START,
     COLON_DELIM,
     CSV_EXTENSION,
-    SAMPLES_PATH,
     RESOLVER_PATH,
+    SAMPLES_PATH,
 )
+from src.models.base.application import aplicacion
+
+from shared_core.middlewares.slogger import SafeLogger
+
+LOGGER = SafeLogger("method2_manager")
 
 
 @dataclass
@@ -100,8 +103,8 @@ class Manager:
         total_size_gb = (num_estados * dimensiones) / (1024**3)
         estimated_time = total_size_gb * 2
 
-        print(f"Tamaño estimado: {total_size_gb:.6f} GB")
-        print(f"Tiempo estimado: {estimated_time:.1f} segundos")
+        LOGGER.info(f"Tamaño estimado: {total_size_gb:.6f} GB")
+        LOGGER.info(f"Tiempo estimado: {estimated_time:.1f} segundos")
 
         if total_size_gb > 1:
             if (
@@ -129,7 +132,7 @@ class Manager:
         filepath = base_path / filename
 
         # Generar estados
-        print("Generando estados...")
+        LOGGER.info("Generando estados...")
         start_time = time.time()
 
         if datos_discretos:
@@ -139,17 +142,17 @@ class Manager:
         else:
             states = np.random.random(size=(num_estados, dimensiones))
 
-        print(f"Generación completada en {time.time() - start_time:.2f} segundos")
+        LOGGER.info(f"Generación completada en {time.time() - start_time:.2f} segundos")
 
         # Guardar archivo
-        print(f"Guardando en {filepath}...")
+        LOGGER.info(f"Guardando en {filepath}...")
         start_time = time.time()
         np.savetxt(
             filepath, states, delimiter=COLON_DELIM, fmt="%d" if datos_discretos else "%.6f"
         )
 
         file_size_gb = os.path.getsize(filepath) / (1024**3)
-        print(f"Archivo guardado: {file_size_gb:.6f} GB")
-        print(f"Tiempo de guardado: {time.time() - start_time:.2f} segundos")
+        LOGGER.info(f"Archivo guardado: {file_size_gb:.6f} GB")
+        LOGGER.info(f"Tiempo de guardado: {time.time() - start_time:.2f} segundos")
 
         return filename

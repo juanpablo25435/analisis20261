@@ -1,14 +1,10 @@
-import heapq
-from src.constants.error import ERROR_INCOMPATIBLE_SIZES
-from shared_core.models.core.system import System
-from src.constants.base import NET_LABEL, STR_ZERO
-from shared_core.funcs.iit import ABECEDARY
-from shared_core.middlewares.slogger import SafeLogger
-from shared_core.funcs.iit import emd_efecto
-from src.models.base.sia import SIA
+import time
+
+import numpy as np
 from src.constants.base import (
     ACTUAL,
     EFECTO,
+    NET_LABEL,
     TYPE_TAG,
 )
 from src.constants.models import (
@@ -17,15 +13,14 @@ from src.constants.models import (
     GEOMETRIC_STRAREGY_TAG,
 )
 from src.controllers.manager import Manager
-from shared_core.funcs.format import fmt_biparte_q
-from src.middlewares.profile import profiler_manager, profile
-from shared_core.models.core.solution import Solution
-import numpy as np
-import time
-from typing import List, Dict, Tuple
+from src.middlewares.profile import profile, profiler_manager
+from src.models.base.sia import SIA
 
-from concurrent.futures import ThreadPoolExecutor
-import itertools
+from shared_core.funcs.format import fmt_biparte_q
+from shared_core.funcs.iit import ABECEDARY, emd_efecto
+from shared_core.middlewares.slogger import SafeLogger
+from shared_core.models.core.solution import Solution
+
 
 class GeometricSIA(SIA):
     def __init__(self, gestor: Manager):
@@ -74,7 +69,7 @@ class GeometricSIA(SIA):
         self._flat_data = []
         for idx, ncubo in enumerate(self.sia_subsistema.ncubos):
             # garantías: ncubo.data.shape == (2,2,...,2)
-            # np.ravel() lo aplana. El orden ‘C’ equivale 
+            # np.ravel() lo aplana. El orden ‘C’ equivale
             # a little-endian si tus tuples están invertidas.
             self._flat_data.append(ncubo.data.ravel())
 
@@ -94,10 +89,10 @@ class GeometricSIA(SIA):
             tiempo_total=time.time() - self.sia_tiempo_inicio,
             particion=fmt_mip,
         )
-    
+
     def nodes_complement(self, nodes: list[tuple[int, int]]):
         return list(set(self.vertices) - set(nodes))
-    
+
     def find_mip(self):
         """
         Implementa el algoritmo para encontrar la bipartición óptima
@@ -107,7 +102,7 @@ class GeometricSIA(SIA):
         estado_inicial = self.estado_inicial
         estado_final = self.estado_final
         self.idx_ncubos = list(range(len(self.sia_subsistema.indices_ncubos)))
-        self.caminos: Dict[int, List[List[int]]] = {0: [estado_inicial.tolist()]}
+        self.caminos: dict[int, list[list[int]]] = {0: [estado_inicial.tolist()]}
         self.tabla_transiciones[tuple(self.caminos[0][0]),tuple(self.caminos[0][0])] = [0.0 for _ in range(len(self.sia_subsistema.indices_ncubos))]
         for nivel in range(1, len(estado_inicial)+1):
             self.calcular_costos_nivel(estado_final,nivel)
@@ -124,9 +119,9 @@ class GeometricSIA(SIA):
         return min(
             self.memoria_particiones, key=lambda k: self.memoria_particiones[k][0]
         )
-    
+
     def calcular_costos_nivel(self,estado_final: np.ndarray, nivel):
-        n = len(estado_final)      
+        n = len(estado_final)
         visitados:set[tuple] = set()
         self.caminos[nivel] = []
         for estado_anterior in self.caminos[nivel - 1]:
@@ -150,7 +145,7 @@ class GeometricSIA(SIA):
                 - y es el factor de decrecimiento 1/2^(dh(i,j))
                 - dh(i,j) es la distancia hamming entre i y j
                 - X[i] es el valor de probabilida de transicion de un estado para cada variable futura
-                - sum(tx(i,k)) son todos costos de transicion de los vecinos de j que estan en un 
+                - sum(tx(i,k)) son todos costos de transicion de los vecinos de j que estan en un
                   camino optimo desde i
         """
         key = tuple(estado_inicial), tuple(estado_final)
@@ -173,7 +168,7 @@ class GeometricSIA(SIA):
         self.tabla_transiciones[key] = diffs.tolist()
         # for idx in ncubos:
         #     self.tabla_transiciones[key][idx] = (abs(self.sia_subsistema.ncubos[idx].data[index_inicial]-self.sia_subsistema.ncubos[idx].data[index_final]))
-        
+
         if distancia_hamming > 1:
             for i in range(len(estado_inicial)):
                 if estado_inicial[i] != estado_final[i]:
@@ -264,5 +259,5 @@ class GeometricSIA(SIA):
             candidatos.append([presentes_nivel, futuros_nivel])
         return candidatos
 
-    def hamming(self,a: List[int], b: List[int]) -> int:
+    def hamming(self,a: list[int], b: list[int]) -> int:
         return sum(x != y for x, y in zip(a, b))

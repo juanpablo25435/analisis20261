@@ -1,9 +1,8 @@
+from collections.abc import Callable
 from itertools import product
-from typing import Callable
 
 import numpy as np
 from numpy.typing import NDArray
-
 
 ABC_START = "A"
 EMPTY_STR = ""
@@ -292,7 +291,7 @@ def estados_binarios(n: int) -> list[str]:
 def _active_emd_mode() -> object:
     try:
         from src.models.base.application import aplicacion
-    except Exception:
+    except (ImportError, ModuleNotFoundError):
         return EMD_EFFECT
     return getattr(aplicacion, "tiempo_emd", getattr(aplicacion, "distancia_metrica", EMD_EFFECT))
 
@@ -300,6 +299,6 @@ def _active_emd_mode() -> object:
 def _active_distance_mode() -> object:
     try:
         from src.models.base.application import aplicacion
-    except Exception:
+    except (ImportError, ModuleNotFoundError):
         return HAMMING
     return getattr(aplicacion, "distancia_metrica", HAMMING)

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache
 
 import numpy as np
 from numpy.typing import NDArray
@@ -22,6 +22,7 @@ class NCube:
         indices_condicionados: NDArray[np.int8],
         estado_inicial: NDArray[np.int8],
     ) -> "NCube":
+        """Return a cube conditioned on selected dimensions from an initial state."""
         numero_dims = self.dims.size
         seleccion = [slice(None)] * numero_dims
 
@@ -40,9 +41,10 @@ class NCube:
         )
 
     def marginalizar(self, ejes: NDArray[np.int8]) -> "NCube":
+        """Return a cube marginalized over the requested global axes."""
         return self._marginalizar(tuple(int(eje) for eje in ejes))
 
-    @lru_cache(maxsize=None)
+    @cache
     def _marginalizar(self, ejes: tuple[int, ...]) -> "NCube":
         marginable_axis = np.intersect1d(np.array(ejes, dtype=np.int8), self.dims)
         if not marginable_axis.size:

@@ -9,7 +9,10 @@ description = "Shared core and quality tooling for the analisis20261 repository.
 requires-python = ">=3.11"
 dependencies = [
     "colorama>=0.4.5",
+    "matplotlib>=3.11.0",
     "numpy>=1.26.4",
+    "openpyxl>=3.1.5",
+    "pandas>=2.3.3",
     "pyemd>=1.1.0",
     "pyinstrument>=5.1.2",
     "pytest>=8.0",

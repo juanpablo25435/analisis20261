@@ -1,7 +1,8 @@
-import numpy as np
-import time
 import os
 import sys
+import time
+
+import numpy as np
 
 
 class SystemCreator:

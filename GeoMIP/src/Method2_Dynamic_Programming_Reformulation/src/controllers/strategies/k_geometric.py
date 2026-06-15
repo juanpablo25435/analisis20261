@@ -1,10 +1,8 @@
-from collections.abc import Iterable
 import time
-from typing import Callable
+from collections.abc import Callable, Iterable
 
 import numpy as np
 from numpy.typing import NDArray
-
 from src.constants.base import BASE_TWO, COLON_DELIM, NET_LABEL, VOID_STR
 from src.constants.models import (
     DUMMY_ARR,
@@ -14,15 +12,16 @@ from src.constants.models import (
     KGEOMETRIC_STRAREGY_TAG,
 )
 from src.controllers.manager import Manager
-from shared_core.funcs.iit import ABECEDARY, LOWER_ABECEDARY, seleccionar_metrica
 from src.middlewares.profile import profiler_manager
-from shared_core.middlewares.slogger import SafeLogger
 from src.models.base.application import aplicacion
 from src.models.base.sia import SIA
+from src.models.enums.distance import MetricDistance
+
+from shared_core.funcs.iit import ABECEDARY, LOWER_ABECEDARY, seleccionar_metrica
+from shared_core.middlewares.slogger import SafeLogger
 from shared_core.models.core.ncube import NCube
 from shared_core.models.core.solution import Solution
 from shared_core.models.core.types import PartitionSpec
-from src.models.enums.distance import MetricDistance
 
 
 class KGeometricSIA(SIA):
@@ -52,6 +51,19 @@ class KGeometricSIA(SIA):
         tpm: np.ndarray | None = None,
         k_max: int | None = None,
     ) -> Solution:
+        """Evaluate KGeoMIP on a subsystem and return the best k-way partition.
+
+        Args:
+            condiciones: Binary mask of conditioned present nodes.
+            alcance: Binary mask of future nodes included in the purview.
+            mecanismo: Binary mask of present nodes included in the mechanism.
+            tpm: Optional TPM override. If omitted, the manager loads its configured TPM.
+            k_max: Optional upper bound for the number of agglomerative clusters.
+
+        Returns:
+            A `Solution` containing integrated Phi, subsystem distribution,
+            partition distribution and a formatted partition string.
+        """
         aplicacion.set_distancia_integrada()
         self.sia_preparar_subsistema(
             condiciones,

@@ -1,29 +1,30 @@
 import time
 from typing import Union
-import numpy as np
-from shared_core.middlewares.slogger import SafeLogger
-from shared_core.funcs.iit import emd_efecto, ABECEDARY
-from src.middlewares.profile import gestor_perfilado, profile
-from shared_core.funcs.format import fmt_biparticion_q
-from src.models.base.sia import SIA
 
-from shared_core.models.core.solution import Solution
+import numpy as np
+from src.constants.base import (
+    ACTUAL,
+    COLS_IDX,
+    EFFECT,
+    INFTY_POS,
+    INT_ZERO,
+    LAST_IDX,
+    NET_LABEL,
+    TYPE_TAG,
+)
 from src.constants.models import (
     QNODES_ANALYSIS_TAG,
     QNODES_LABEL,
     QNODES_STRAREGY_TAG,
 )
-from src.constants.base import (
-    COLS_IDX,
-    INT_ZERO,
-    TYPE_TAG,
-    NET_LABEL,
-    INFTY_POS,
-    LAST_IDX,
-    EFFECT,
-    ACTUAL,
-)
+from src.middlewares.profile import gestor_perfilado, profile
 from src.models.base.application import aplicacion
+from src.models.base.sia import SIA
+
+from shared_core.funcs.format import fmt_biparticion_q
+from shared_core.funcs.iit import ABECEDARY, emd_efecto
+from shared_core.middlewares.slogger import SafeLogger
+from shared_core.models.core.solution import Solution
 
 
 class QNodes(SIA):
@@ -288,7 +289,7 @@ class QNodes(SIA):
         )
 
     def funcion_submodular(
-        self, deltas: Union[tuple, list[tuple]], omegas: list[Union[tuple, list[tuple]]]
+        self, deltas: tuple | list[tuple], omegas: list[tuple | list[tuple]]
     ):
         """
         Evalúa el impacto de combinar el conjunto de nodos individual delta y su agrupación con el conjunto omega, calculando la diferencia entre EMD (Earth Mover's Distance) de las configuraciones, en conclusión los nodos delta evaluados individualmente y su combinación con el conjunto omega.
@@ -367,7 +368,7 @@ class QNodes(SIA):
 
     def definir_clave(
         self,
-        conjunto: Union[tuple[int, int], list[tuple[int, int]]],
+        conjunto: tuple[int, int] | list[tuple[int, int]],
     ):
         if isinstance(conjunto, tuple):
             tiempo, indice = conjunto
