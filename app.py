@@ -41,6 +41,12 @@ ENGINE_QNODES = "Método 1: QNodes (Optimización Submodular)"
 ENGINE_GEOMIP = "Método 2: GeoMIP (Aglomeración Geométrica)"
 SOURCE_EXCEL = "Cargar desde Excel Completo"
 SOURCE_CSV = "Subir Matriz TPM Personalizada (.csv)"
+PHI_METRIC_LABELS = {
+    "Phi_Efecto": "Phi Efecto",
+    "Phi_Causa": "Phi Causa",
+    "Phi_Integrado": "Phi Integrado",
+    "Phi": "Phi",
+}
 
 
 @dataclass(frozen=True)
@@ -542,24 +548,29 @@ def _render_dashboard() -> None:
         return
 
     df = _coerce_phi_columns(df)
-    filtered = _render_result_filters(df)
+    filtered, selected_phi_column = _render_result_filters(df)
 
     left, mid, right = st.columns(3)
     left.metric("Filas", len(filtered))
-    phi_columns = _phi_columns(filtered)
-    if phi_columns:
-        primary_phi = phi_columns[0]
-        mid.metric(f"Promedio {primary_phi}", f"{filtered[primary_phi].mean():.5f}")
-        right.metric(f"Máximo {primary_phi}", f"{filtered[primary_phi].max():.5f}")
+    if selected_phi_column and selected_phi_column in filtered.columns:
+        selected_phi_label = _phi_metric_label(selected_phi_column)
+        mid.metric(
+            f"Promedio {selected_phi_label}",
+            f"{filtered[selected_phi_column].mean():.5f}",
+        )
+        right.metric(
+            f"Máximo {selected_phi_label}",
+            f"{filtered[selected_phi_column].max():.5f}",
+        )
     else:
         mid.metric("Columnas", len(filtered.columns))
         right.metric("Phi", "No detectado")
 
     st.dataframe(filtered, use_container_width=True, hide_index=True)
-    _render_phi_visuals(filtered, selected_path)
+    _render_phi_visuals(filtered, selected_path, selected_phi_column)
 
 
-def _render_result_filters(df: pd.DataFrame) -> pd.DataFrame:
+def _render_result_filters(df: pd.DataFrame) -> tuple[pd.DataFrame, str | None]:
     filtered = df.copy()
     filter_columns = [
         column
@@ -578,10 +589,16 @@ def _render_result_filters(df: pd.DataFrame) -> pd.DataFrame:
         filtered = filtered[mask]
 
     phi_columns = _phi_columns(filtered)
+    selected_phi_column = None
     if phi_columns:
-        phi_column = st.selectbox("Columna Phi para filtro", phi_columns)
-        min_phi = float(filtered[phi_column].min())
-        max_phi = float(filtered[phi_column].max())
+        selected_phi_column = st.selectbox(
+            "Métrica Phi",
+            phi_columns,
+            format_func=_phi_metric_label,
+            key="dashboard_phi_metric",
+        )
+        min_phi = float(filtered[selected_phi_column].min())
+        max_phi = float(filtered[selected_phi_column].max())
         if min_phi < max_phi:
             phi_range = st.slider(
                 "Rango Phi",
@@ -590,17 +607,24 @@ def _render_result_filters(df: pd.DataFrame) -> pd.DataFrame:
                 value=(min_phi, max_phi),
             )
             filtered = filtered[
-                filtered[phi_column].between(phi_range[0], phi_range[1], inclusive="both")
+                filtered[selected_phi_column].between(phi_range[0], phi_range[1], inclusive="both")
             ]
-    return filtered
+    return filtered, selected_phi_column
 
 
-def _render_phi_visuals(df: pd.DataFrame, result_path: Path) -> None:
+def _render_phi_visuals(
+    df: pd.DataFrame,
+    result_path: Path,
+    selected_phi_column: str | None,
+) -> None:
     st.subheader("Visualización de Phi")
     phi_columns = _phi_columns(df)
     if not phi_columns:
         st.info("No se detectaron columnas Phi numéricas para graficar.")
         return
+    if selected_phi_column not in phi_columns:
+        selected_phi_column = phi_columns[0]
+    selected_phi_label = _phi_metric_label(selected_phi_column)
 
     if px is not None:
         plot_df = df.reset_index(names="Índice")
@@ -618,24 +642,9 @@ def _render_phi_visuals(df: pd.DataFrame, result_path: Path) -> None:
             "Mecanismo",
             "Tiempo de ejecución (s)",
         )
-        if "Phi" in plot_df.columns and len(phi_columns) == 1:
-            chart_df = plot_df.dropna(subset=["Phi"]).copy()
-            y_axis = "Phi"
-            color_axis = "Métrica" if "Métrica" in chart_df.columns else None
-        else:
-            id_vars = [
-                column
-                for column in metadata_columns
-                if column in plot_df.columns and column not in phi_columns
-            ]
-            chart_df = plot_df.melt(
-                id_vars=id_vars,
-                value_vars=phi_columns,
-                var_name="Métrica",
-                value_name="Valor_Phi",
-            ).dropna(subset=["Valor_Phi"])
-            y_axis = "Valor_Phi"
-            color_axis = "Métrica"
+        chart_df = plot_df.dropna(subset=[selected_phi_column]).copy()
+        y_axis = selected_phi_column
+        color_axis = "Método" if "Método" in chart_df.columns else None
 
         x_axis = "Iteración" if "Iteración" in chart_df.columns else "Índice"
         hover_data = [
@@ -649,13 +658,13 @@ def _render_phi_visuals(df: pd.DataFrame, result_path: Path) -> None:
             y=y_axis,
             color=color_axis,
             hover_data=hover_data if hover_data else None,
-            labels={y_axis: "Phi"},
-            title="Dispersión interactiva de Phi por subsistema",
+            labels={y_axis: selected_phi_label},
+            title=f"Dispersión interactiva de {selected_phi_label} por subsistema",
         )
         fig.update_layout(legend_title_text="", margin=dict(l=10, r=10, t=55, b=10))
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.line_chart(df[phi_columns])
+        st.line_chart(df[[selected_phi_column]])
 
     if PHI_COMPARISON_PNG.exists() and result_path.suffix.lower() in {".xlsx", ".xls"}:
         st.image(str(PHI_COMPARISON_PNG), caption="Gráfico de asimetría Phi_Efecto vs Phi_Causa")
@@ -1302,6 +1311,10 @@ def _phi_columns(df: pd.DataFrame) -> list[str]:
         and pd.api.types.is_numeric_dtype(df[column])
         and df[column].notna().any()
     ]
+
+
+def _phi_metric_label(column: str) -> str:
+    return PHI_METRIC_LABELS.get(column, column.replace("_", " "))
 
 
 def _build_comparison_frame() -> pd.DataFrame:
