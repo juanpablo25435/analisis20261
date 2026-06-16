@@ -33,11 +33,13 @@ class BatchConfig:
     default_k_max: int = 5
     start: int = 0
     count: int = 50
+    estado_inicio: str | None = None
 
     @classmethod
     def from_mapping(cls, values: dict[str, object] | None) -> BatchConfig:
         """Build a config from YAML values while accepting Spanish legacy keys."""
         values = values or {}
+        estado_inicio = values.get("estado_inicio")
         return cls(
             sheet_index=int(values.get("sheet_index", values.get("hoja", 8))),
             column=str(values.get("column", values.get("columna", "B"))),
@@ -46,6 +48,7 @@ class BatchConfig:
             default_k_max=int(values.get("DEFAULT_K_MAX", values.get("default_k_max", 5))),
             start=int(values.get("start", values.get("inicio", 0))),
             count=int(values.get("count", values.get("cantidad", 50))),
+            estado_inicio=None if estado_inicio is None else str(estado_inicio),
         )
 
 
