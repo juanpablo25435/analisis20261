@@ -1,5 +1,5 @@
 import time
-from typing import Union
+from typing import Any
 
 import numpy as np
 from src.constants.base import (
@@ -99,7 +99,7 @@ class QNodes(SIA):
       efecto (futuro).
     """
 
-    def __init__(self, tpm: np.ndarray):
+    def __init__(self, tpm: np.ndarray, stop_event: Any | None = None):
         super().__init__(tpm)
         gestor_perfilado.start_session(
             f"{NET_LABEL}{len(tpm[COLS_IDX])}{aplicacion.pagina_red_muestra}"
@@ -117,6 +117,12 @@ class QNodes(SIA):
         self.indices_mecanismo: np.ndarray
 
         self.logger = SafeLogger(QNODES_STRAREGY_TAG)
+        self.stop_event = stop_event
+
+    def _check_stop_requested(self) -> None:
+        if self.stop_event is not None and self.stop_event.is_set():
+            self.logger.info("Corte de emergencia activado por el usuario. Abortando pipeline...")
+            raise InterruptedError("QNodes detenido por el usuario.")
 
     def aplicar_estrategia(
         self,
@@ -125,7 +131,9 @@ class QNodes(SIA):
         alcance: str,
         mecanismo: str,
     ):
+        self._check_stop_requested()
         self.sia_preparar_subsistema(estado_inicial, condicion, alcance, mecanismo)
+        self._check_stop_requested()
 
         # e.g. (1,0)=A (1,1)=B (1,2)=C #
         futuro = tuple(
@@ -220,6 +228,7 @@ class QNodes(SIA):
         indice_emd = INT_ZERO
 
         for i in range(len(vertices) - 1):
+            self._check_stop_requested()
             # self.logger.debug(f"total: {len(vertices) - i}")
             omegas_ciclo = [vertices[0]]
             deltas_ciclo = vertices[1:]
@@ -228,11 +237,13 @@ class QNodes(SIA):
             dist_particion_candidata = None
 
             for j in range(len(deltas_ciclo) - 1):
+                self._check_stop_requested()
                 # self.logger.critic(f"   {j=}")
                 emd_local = 1e5
                 indice_mip: int
 
                 for k in range(len(deltas_ciclo)):
+                    self._check_stop_requested()
                     emd_union, emd_delta, dist_marginal_delta = self.funcion_submodular(
                         deltas_ciclo[k], omegas_ciclo
                     )
@@ -326,6 +337,7 @@ class QNodes(SIA):
             )
             Esto lo hice así para hacer almacenamiento externo de la emd individual y su distribución marginal en las particiones candidatas.
         """
+        self._check_stop_requested()
         vector_delta_marginal = None
         self.clave_submodular = [], []
 
@@ -338,6 +350,7 @@ class QNodes(SIA):
         dims_mecanismo_delta = self.clave_submodular[ACTUAL]
 
         if clave_delta not in self.memoria_delta:
+            self._check_stop_requested()
             particion_delta = self.sia_subsistema.bipartir(
                 np.array(idxs_alcance_delta, dtype=np.int8),
                 np.array(dims_mecanismo_delta, dtype=np.int8),
@@ -352,11 +365,13 @@ class QNodes(SIA):
         # Unión #
 
         for omega in omegas:
+            self._check_stop_requested()
             self.definir_clave(omega)
 
         idxs_alcance_union = self.clave_submodular[EFFECT]
         dims_mecanismo_union = self.clave_submodular[ACTUAL]
 
+        self._check_stop_requested()
         particion_union = self.sia_subsistema.bipartir(
             np.array(idxs_alcance_union, dtype=np.int8),
             np.array(dims_mecanismo_union, dtype=np.int8),
