@@ -49,8 +49,8 @@ tamaño mediante:
 El repositorio se organiza en tres capas conceptuales:
 
 1. `shared_core`: núcleo unificado de modelado y cálculo causal.
-2. `QNodes`: enfoque submodular y ejecución directa.
-3. `GeoMIP`: enfoque geométrico y procesamiento batch masivo.
+2. KQNodes (`QNodes`): enfoque submodular y ejecución directa.
+3. KGeoMIP (`GeoMIP`): enfoque geométrico y procesamiento batch masivo.
 
 Esta separación reduce duplicación, permite pruebas unitarias compartidas y
 evita que las estrategias dependan de implementaciones divergentes de
@@ -59,7 +59,7 @@ hipercubos, sistemas o distancias.
 ### 2.1 `shared_core`: núcleo unificado
 
 `shared_core` contiene las abstracciones comunes que antes estaban duplicadas
-entre `QNodes` y `Method2`.
+entre KQNodes (`QNodes`) y el flujo geométrico de KGeoMIP (`Method2`).
 
 Componentes principales:
 
@@ -140,10 +140,12 @@ y mantiene dos componentes:
 La clase normaliza los bloques, evita nodos repetidos y garantiza que alcance y
 mecanismo tengan la misma cantidad de bloques.
 
-### 2.2 `QNodes`: enfoque submodular
+### 2.2 KQNodes (`QNodes`): enfoque submodular
 
-`QNodes` conserva el flujo de ejecución directa y sirve como base clásica para
-comparaciones.
+KQNodes conserva el flujo de ejecución directa y sirve como base clásica para
+comparaciones, experimentación controlada y validación local de estrategias.
+Cuando se menciona `QNodes`, el término se refiere al directorio o paquete de
+implementación; cuando se describe el método, se utiliza KQNodes.
 
 Flujo principal:
 
@@ -161,16 +163,18 @@ Este enfoque es importante porque:
 - facilita comparar heurísticas contra fuerza bruta;
 - conserva scripts de prueba manual para k-particiones.
 
-### 2.3 `GeoMIP`: enfoque geométrico y batch
+### 2.3 KGeoMIP (`GeoMIP`): enfoque geométrico y batch
 
-`GeoMIP/src/Method2_Dynamic_Programming_Reformulation` implementa el flujo
+KGeoMIP, implementado en
+`GeoMIP/src/Method2_Dynamic_Programming_Reformulation`, materializa el flujo
 masivo:
 
 1. `exec.py` inicializa la aplicación.
 2. `src/main.py` carga `config.yaml`.
 3. `src/pipeline/batch.py` lee subsistemas desde Excel.
 4. Cada subsistema se evalúa en proceso separado con timeout.
-5. `KGeometricSIA` calcula una partición k-vía eficiente.
+5. `KGeometricSIA` calcula una partición k-vía eficiente como clase concreta de
+   implementación de KGeoMIP.
 6. El resultado se escribe en `resultados_Geometric.xlsx`.
 
 La configuración central se encuentra en `config.yaml`:
@@ -207,8 +211,23 @@ $t-1$.
 
 ### 3.1 Explosión combinatoria
 
-El número de formas de particionar un conjunto de $n$ elementos en $k$ bloques
-no vacíos está dado por los Números de Stirling de segundo tipo:
+La formulación bipartita tradicional considera particiones con $k=2$. Esta
+restricción es útil como punto de partida porque separa el sistema en dos
+componentes causalmente comparables, pero no agota las formas en que un sistema
+puede perder integración. KGeoMIP extiende la pregunta hacia particiones con:
+
+$$
+k \in \{2,3,4,5\}
+$$
+
+en las configuraciones operativas actuales, o más generalmente hacia
+$2 \le k \le K_{\max}$. El tránsito de biparticiones a k-particiones cambia la
+escala matemática del problema: ya no se pregunta solamente qué corte binario
+minimiza la pérdida, sino qué descomposición en $k$ bloques no vacíos induce la
+menor divergencia entre el repertorio original y el repertorio particionado.
+
+El número de formas de particionar un conjunto de $n$ elementos en exactamente
+$k$ bloques no vacíos está dado por los Números de Stirling de segundo tipo:
 
 $$
 S(n,k) =
@@ -226,17 +245,59 @@ $$
 B_n = \sum_{k=0}^{n} S(n,k)
 $$
 
-En el problema MIP extendido, la explosión es todavía más severa porque deben
-considerarse particiones compatibles de:
+Así, $S(n,k)$ mide la complejidad de un tamaño de partición fijo, mientras que
+$B_n$ mide la complejidad del espacio completo de particiones. En el problema
+MIP extendido, la explosión es todavía más severa porque deben considerarse
+particiones compatibles de:
 
 - alcance/futuro;
 - mecanismo/presente.
 
-Una búsqueda exhaustiva k-vía tiende a crecer de forma Bell-like. Por ello,
+Si alcance y mecanismo se enumeraran de manera independiente, el espacio
+candidato tendría una presión combinatoria cercana a productos del tipo
+$S(n,k)^2$ para un $k$ fijo, antes de aplicar restricciones de compatibilidad.
+Por ello, una búsqueda exhaustiva k-vía tiende a crecer de forma Bell-like y
 KGeoMIP no intenta enumerar todo el espacio salvo en estrategias de referencia
-como `KForceSIA`.
+como `KForceSIA`, usadas únicamente como oráculo local en sistemas pequeños.
 
-### 3.2 Estados binarios e hipercubo n-dimensional
+### 3.2 Independencia causal inducida por una partición
+
+Una partición no es solamente una división descriptiva de nodos. En IIT, imponer
+una partición equivale a evaluar una hipótesis contrafáctica: los bloques
+particionados se tratan como causalmente independientes para reconstruir el
+repertorio global. Si una partición se escribe como:
+
+$$
+\mathcal{P}_k = \{B_1, B_2,\dots,B_k\}
+$$
+
+entonces el repertorio particionado se aproxima mediante el producto tensorial
+de los repertorios marginales de cada bloque:
+
+$$
+P_{\mathcal{P}_k}(X_{t+1} \mid X_t)
+=
+\bigotimes_{i=1}^{k}
+P_{B_i}(X_{B_i,t+1} \mid X_{B_i,t})
+$$
+
+El símbolo $\otimes$ expresa que la dinámica conjunta se reconstruye componiendo
+distribuciones marginales, no conservando todas las dependencias del sistema
+original. La pérdida de información integrada se mide precisamente al comparar:
+
+$$
+P_{\text{subsistema}}(X_{t+1} \mid X_t)
+\quad \text{contra} \quad
+P_{\mathcal{P}_k}(X_{t+1} \mid X_t)
+$$
+
+La misma idea se aplica al repertorio causal hacia $t-1$, donde la partición
+induce independencia entre bloques del mecanismo pasado reconstruido. Por tanto,
+la MIP no es una partición puramente geométrica: es la partición que, al imponer
+independencia causal entre bloques, produce la mínima degradación medible del
+repertorio.
+
+### 3.3 Estados binarios e hipercubo n-dimensional
 
 Un sistema binario de $n$ nodos tiene:
 
@@ -268,7 +329,7 @@ nodo futuro. `System` transforma cada columna nodo de la TPM en un `NCube`, de
 forma que condicionar y marginalizar corresponden a operaciones geométricas
 sobre dimensiones del hipercubo.
 
-### 3.3 Tabla de costos de transiciones
+### 3.4 Tabla de costos de transiciones
 
 La distancia causal usa una matriz de costos entre estados. En la implementación
 actual, `emd_causal` construye una matriz:
@@ -313,6 +374,14 @@ distintos valores de $k$.
 
 ## 4. Análisis de Causalidad Temporal ($t-1$ y $t+1$)
 
+La evaluación integrada distingue dos direcciones temporales que no son
+intercambiables. El repertorio de efecto pregunta qué futuros son compatibles
+con el estado presente, mientras que el repertorio de causa pregunta qué pasados
+pudieron haber producido el estado presente observado. Esta asimetría es central
+en IIT: aun cuando la TPM forward sea el objeto empírico disponible, el análisis
+causal exige reconstruir una distribución hacia $t-1$ y compararla con la
+distribución hacia $t+1$.
+
 ### 4.1 Repertorio de efecto
 
 El repertorio de efecto describe cómo un estado presente restringe el futuro
@@ -330,7 +399,8 @@ En la implementación, este repertorio proviene directamente de la TPM forward.
 
 La distribución marginal de efecto se obtiene seleccionando el estado inicial
 en cada cubo y aplicando marginalizaciones inducidas por el subsistema o la
-partición.
+partición. Formalmente, el cálculo evalúa cómo la intervención o condición en
+$X_t=x_t$ contrae el espacio de futuros posibles en $X_{t+1}$.
 
 ### 4.2 Repertorio de causa
 
@@ -361,21 +431,63 @@ $$
 P(x_t) = \sum_{x_{t-1}} P(x_t \mid x_{t-1})P(x_{t-1})
 $$
 
-### 4.3 Rescate Bayesiano por lotes
+El supuesto uniforme no significa que el sistema sea causalmente trivial; sólo
+establece que, antes de observar $x_t$, todos los estados pasados se ponderan
+por igual. La estructura causal sigue entrando por el término de verosimilitud
+$P(x_t \mid x_{t-1})$, obtenido de la TPM forward.
+
+### 4.3 El Rescate Bayesiano
 
 La función `generar_tpm_causal` implementa la conversión forward-to-causal por
-lotes. En lugar de materializar todos los tensores intermedios del espacio
-conjunto, procesa segmentos de estados futuros.
+lotes. El problema técnico aparece porque una TPM estado-nodo densa induce, al
+aplicar Bayes, una relación entre todos los estados pasados y todos los estados
+presentes posibles. Para $n$ nodos binarios, esa matriz conceptual tiene:
+
+$$
+2^n \times 2^n = 4^n
+$$
+
+celdas de verosimilitud. Si se materializa completa junto con tensores
+intermedios, el cálculo causal hacia $t-1$ puede colapsar la RAM incluso antes
+de evaluar particiones. El Rescate Bayesiano evita ese colapso procesando la
+regla de Bayes en lotes acotados por 4.000.000 de celdas operativas.
+
+Con una previa uniforme:
+
+$$
+P(x_{t-1}) = \frac{1}{2^n}
+$$
+
+el numerador bayesiano puede calcularse por segmentos de estados presentes sin
+almacenar la matriz completa. Para cada lote $\mathcal{B}$ de estados actuales,
+se evalúa:
+
+$$
+N_{\mathcal{B}}(x_{t-1},x_t)
+=
+P(x_t \mid x_{t-1})P(x_{t-1}),
+\quad x_t \in \mathcal{B}
+$$
+
+y luego se normaliza por la evidencia:
+
+$$
+P(x_{t-1} \mid x_t)
+=
+\frac{N_{\mathcal{B}}(x_{t-1},x_t)}
+{\sum_{x'_{t-1}}N_{\mathcal{B}}(x'_{t-1},x_t)}
+$$
 
 La implementación:
 
 1. enumera los estados binarios como enteros;
 2. extrae bits mediante operaciones vectorizadas;
 3. calcula likelihoods por batch;
-4. acumula evidencia;
-5. obtiene numeradores mediante producto matricial;
-6. normaliza con `np.divide`;
-7. escribe el resultado en una TPM causal compacta.
+4. aplica la previa uniforme;
+5. acumula evidencia por columna causal;
+6. obtiene numeradores mediante producto matricial;
+7. normaliza con `np.divide`;
+8. escribe el resultado en una TPM causal compacta.
 
 El tamaño de lote se controla con:
 
@@ -394,7 +506,7 @@ $$
 \right\rfloor\right)\right)
 $$
 
-Este rediseño es el denominado "Rescate Bayesiano": una factorización por lotes
+Este rediseño es el denominado Rescate Bayesiano: una factorización por lotes
 del Teorema de Bayes que evita construir tensores completos de tamaño
 prohibitivo. En la práctica de la refactorización, esto redujo una estimación
 de consumo de memoria del orden de 120 GB a una huella mucho más cercana a
@@ -402,14 +514,16 @@ crecimiento lineal por batch operativo.
 
 La diferencia arquitectónica es decisiva:
 
-- antes: materialización global de estructuras causales;
-- ahora: procesamiento incremental por bloques de estados.
+- antes: materialización global de estructuras causales densas;
+- ahora: procesamiento incremental por bloques de estados con normalización
+  bayesiana local por lote.
 
-## 5. Algoritmo KGeometricSIA y Heurística
+## 5. Algoritmo KGeoMIP y Heurística
 
 ### 5.1 Herencia desde `SIA`
 
-`KGeometricSIA` hereda de `SIA`:
+La clase `KGeometricSIA` es la implementación concreta de la estrategia
+KGeoMIP y hereda de `SIA`:
 
 $$
 \texttt{KGeometricSIA} \subset \texttt{SIA}
@@ -519,8 +633,8 @@ La conversión se formaliza con `PartitionSpec`.
 
 ### 5.5 Complejidad
 
-La búsqueda exacta sobre particiones arbitrarias tiene complejidad asociada a
-los Números de Bell:
+Un oráculo exhaustivo de MIP que evalúa todas las particiones arbitrarias del
+sistema tiene complejidad estructural asociada a los Números de Bell:
 
 $$
 O(B_n)
@@ -533,36 +647,51 @@ B_n = \sum_{k=0}^{n} S(n,k)
 $$
 
 Esto crece super-exponencialmente y hace inviable una enumeración exacta en
-sistemas grandes.
+sistemas grandes. Para un $k$ fijo, el coste combinatorio correspondiente es
+$O(S(n,k))$; al permitir todos los valores de $k$, la suma de esos términos
+recupera $O(B_n)$. En formulaciones que separan alcance y mecanismo, esta
+presión puede aumentar por combinaciones compatibles entre ambas particiones,
+por lo que $O(B_n)$ debe leerse como el umbral combinatorio central, no como una
+cota optimista de implementación.
 
 KGeoMIP reemplaza esa enumeración por:
 
 - extracción de perfiles sobre estructuras `NCube`;
-- matriz de distancias de tamaño $n \times n$;
+- cálculo único y cacheado de la matriz de Hamming de perfiles de tamaño
+  $n \times n$;
 - clustering aglomerativo acotado por `DEFAULT_K_MAX`;
 - evaluación de una partición candidata por cada $k$.
 
-Si la construcción de repertorios marginales domina por el número de estados,
-el coste operativo se aproxima a:
+La reducción práctica proviene de una regla de reutilización estricta: los
+costos geométricos entre nodos no se recalculan para cada valor de $k$. La
+matriz de Hamming se calcula y se cachea exactamente una vez, y los agrupamientos
+para distintos tamaños de partición reutilizan esa misma estructura. Así, el
+paso exponencial dominante queda asociado a preparar perfiles y distribuciones
+en el espacio de estados binarios:
 
 $$
 O(n \cdot 2^n)
 $$
 
-para la preparación de perfiles/distribuciones, más el coste polinomial del
-clustering:
+mientras que la búsqueda sobre $k$ deja de enumerar particiones Bell y pasa a
+recorrer una secuencia acotada de candidatos geométricamente inducidos:
+
+$$
+k \in \{2,\dots,K_{\max}\}
+$$
+
+El coste adicional del clustering aglomerativo directo es polinomial:
 
 $$
 O(n^3)
 $$
 
-en una implementación aglomerativa directa. En la práctica, al fijar
-`DEFAULT_K_MAX`, el algoritmo evita recorrer el espacio Bell completo y evalúa
-un conjunto pequeño de particiones geométricamente informadas:
-
-$$
-k \in \{2,\dots,K_{\max}\}
-$$
+Esta complejidad no convierte el cálculo de IIT en un problema polinomial en
+sentido fuerte, porque los repertorios siguen viviendo sobre $2^n$ estados y EMD
+mantiene su propio coste de optimización. La contribución de KGeoMIP es más
+precisa: sustituye la enumeración $O(B_n)$ del oráculo por una aproximación
+heurística donde el coste combinatorio de variar $k$ queda absorbido por
+reutilización geométrica y por el límite operativo `DEFAULT_K_MAX`.
 
 ### 5.6 Pruebas de estrés multiescala
 
@@ -622,7 +751,12 @@ Excel.
 
 ## 6. Validación y Regresión
 
-La validación se apoya en tres niveles.
+La validación se apoya en tres niveles y debe interpretarse con una distinción
+metodológica explícita: los oráculos exactos sólo son viables en sistemas
+pequeños, mientras que en redes de mayor escala KGeoMIP opera como aproximación
+heurística informada por geometría causal. Por tanto, la evidencia empírica a
+escala no sustituye la prueba exhaustiva; la complementa bajo restricciones de
+coste computacional.
 
 ### 6.1 Consistencia con bipartición ($k=2$)
 
@@ -675,8 +809,8 @@ La suite de pruebas cubre:
 
 - `NCube`
 - `System`
-- `KForceSIA`
-- `KGeometricSIA`
+- `KForceSIA`, como clase de fuerza bruta para oráculo local;
+- `KGeometricSIA`, como clase de implementación de KGeoMIP;
 - generación visual con `analyze_results.py`
 
 Los tests de estrategias usan TPM pequeñas para garantizar convergencia y
@@ -707,6 +841,9 @@ O(n \cdot 2^n)
 $$
 
 y de operaciones polinomiales sobre una matriz de distancia entre nodos.
+Esta conversión depende de que la matriz de costos geométricos se compute una
+sola vez y se reutilice al comparar diferentes valores de $k$, evitando
+recalcular Hamming para cada partición candidata.
 
 ## 8. Limitaciones y Trabajo Futuro
 
@@ -723,6 +860,9 @@ seguir siendo alto porque cada fila del Excel activa:
 
 La paralelización por proceso permite controlar timeouts, pero también añade
 coste de serialización y arranque.
+La consecuencia metodológica es que los tiempos reportados deben interpretarse
+como tiempos del pipeline completo, no como una medida pura del coste matemático
+de una única operación IIT.
 
 ### 8.2 Sensibilidad al estado inicial
 
@@ -741,16 +881,23 @@ En sistemas grandes, pequeñas variaciones del estado pueden cambiar:
 - partición seleccionada.
 
 Por tanto, una extensión futura relevante es estudiar estabilidad de la MIP
-frente a múltiples estados iniciales.
+frente a múltiples estados iniciales. Una validación académica más fuerte debe
+reportar si la partición seleccionada es robusta bajo perturbaciones de $x_t$ o
+si corresponde a una configuración causal local altamente dependiente del estado
+observado.
 
 ### 8.3 Heurística no exacta
 
 KGeoMIP no garantiza encontrar la MIP global para todo $k$. Su objetivo es
-aproximar una partición informada causalmente con coste viable. La heurística
-puede fallar si:
+aproximar una partición informada causalmente con coste viable. Desde el punto
+de vista matemático, el agrupamiento aglomerativo es una heurística codiciosa:
+una vez que fusiona dos clusters, no reabre esa decisión. Por tanto, en sistemas
+ruidosos o con señales causales débiles puede converger a un mínimo local que no
+coincida con la partición globalmente óptima. La heurística puede fallar si:
 
 - la geometría de perfiles no refleja la pérdida EMD real;
 - existen interacciones de alto orden no capturadas por promedios de perfiles;
+- la primera fusión codiciosa bloquea una combinación posterior mejor;
 - el valor óptimo requiere $k > K_{\max}$.
 
 ### 8.4 Validación externa limitada por tamaño
@@ -765,14 +912,30 @@ combinar:
 - inspección visual de asimetría temporal;
 - estabilidad ante variaciones de configuración.
 
+### 8.5 Persistencia del cuello de botella EMD
+
+El Rescate Bayesiano y la reutilización de Hamming reducen memoria y evitan
+enumerar el espacio Bell completo, pero no eliminan el cuello de botella de EMD.
+La distancia Earth Mover's Distance se resuelve mediante Programación Lineal, y
+su matriz de transporte crece con el número de estados activos. Por esta razón,
+la computación práctica de subsistemas completamente activos se mantiene
+limitada alrededor de N=12 o N=13 en hardware convencional.
+
+Este límite debe comunicarse con precisión: KGeoMIP puede procesar universos
+nominales mayores cuando el subsistema evaluado es pequeño, disperso o acotado,
+pero el caso completamente activo sigue dominado por el coste de EMD. En
+términos de trabajo futuro, las rutas razonables incluyen aproximaciones de EMD,
+relajaciones de transporte, poda por cotas inferiores y validación empírica de
+cuándo esas aproximaciones preservan el orden relativo de las particiones.
+
 ## 9. Conclusión
 
 KGeoMIP extiende el análisis MIP desde biparticiones hacia k-particiones
 mediante una arquitectura diseñada para sostener cálculo causal en sistemas
 grandes. La contribución central no es únicamente algorítmica, sino también
 arquitectónica: separar el núcleo causal (`shared_core`), conservar un enfoque
-submodular de referencia (`QNodes`) y construir un flujo geométrico batch
-(`GeoMIP`) permite que el análisis de causa y efecto sea reproducible,
+submodular de referencia KQNodes (`QNodes`) y construir un flujo geométrico batch
+KGeoMIP (`GeoMIP`) permite que el análisis de causa y efecto sea reproducible,
 testeable y escalable.
 
 El "Rescate Bayesiano" por lotes y la reutilización de matrices geométricas
