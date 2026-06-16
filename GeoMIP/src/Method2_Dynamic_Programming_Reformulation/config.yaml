@@ -1,7 +1,8 @@
-sheet_index: 8
+sheet_index: 6
 column: B
 skiprows: 3
 timeout_seconds: 300
 DEFAULT_K_MAX: 3
 start: 0
 count: 10
+estado_inicio: "000000000000000"

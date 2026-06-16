@@ -25,7 +25,12 @@ def iniciar(config_path: Path | None = None) -> None:
             str(GEOMIP_ROOT / "results" / "resultados_Geometric.xlsx"),
         )
     )
-    ejecutar_desde_excel(ruta_entrada, ruta_salida, config)
+    ejecutar_desde_excel(
+        ruta_entrada,
+        ruta_salida,
+        config,
+        estado_inicio=config.estado_inicio,
+    )
 
 
 def _load_config(config_path: Path) -> dict:
