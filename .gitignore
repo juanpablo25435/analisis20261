@@ -67,3 +67,16 @@ GeoMIP/results/*.log
 GeoMIP/results/*.png
 GeoMIP/results/resultados_Geometric.xlsx
 GeoMIP/src/Method2_Dynamic_Programming_Reformulation/review/profiling/**/*.html
+
+CLAUDE.md
+GEMINI.md 
+.cursorrules
+.windsurfrules
+QODER.md
+.kiro/
+.qoder
+.github
+.claude
+.gemini/
+.mcp.json
+.opencode.json
