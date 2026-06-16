@@ -277,7 +277,7 @@ def _render_configuration(engine: str, data_source: str) -> PipelineRequest | No
     launch = st.button(
         "▶️ Lanzar Pipeline por Lotes",
         type="primary",
-        width="stretch",
+        use_container_width=True,
     )
 
     if not launch:
@@ -347,7 +347,7 @@ def _render_monitor(request: PipelineRequest | None) -> None:
         stop_clicked = st.button(
             "🛑 Detener Inmediatamente",
             type="secondary",
-            width="stretch",
+            use_container_width=True,
             disabled=not st.session_state.get("ejecutando"),
         )
     if stop_clicked:
@@ -555,7 +555,7 @@ def _render_dashboard() -> None:
         mid.metric("Columnas", len(filtered.columns))
         right.metric("Phi", "No detectado")
 
-    st.dataframe(filtered, width="stretch", hide_index=True)
+    st.dataframe(filtered, use_container_width=True, hide_index=True)
     _render_phi_visuals(filtered, selected_path)
 
 
@@ -653,7 +653,7 @@ def _render_phi_visuals(df: pd.DataFrame, result_path: Path) -> None:
             title="Dispersión interactiva de Phi por subsistema",
         )
         fig.update_layout(legend_title_text="", margin=dict(l=10, r=10, t=55, b=10))
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
     else:
         st.line_chart(df[phi_columns])
 
@@ -676,7 +676,7 @@ def _render_arena() -> None:
         )
         return
 
-    st.dataframe(comparison, width="stretch", hide_index=True)
+    st.dataframe(comparison, use_container_width=True, hide_index=True)
 
     if px is not None:
         fig = px.bar(
@@ -689,7 +689,7 @@ def _render_arena() -> None:
             title="Tiempo de Ejecución (segundos) QNodes vs GeoMIP",
         )
         fig.update_layout(margin=dict(l=10, r=10, t=55, b=10))
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
     else:
         pivot = comparison.pivot_table(
             index="N",
@@ -1205,7 +1205,7 @@ def _preview_uploaded_csv(uploaded_file) -> None:
         preview = pd.read_csv(uploaded_file, header=None, nrows=5)
         uploaded_file.seek(0)
         st.caption("Vista previa de la TPM")
-        st.dataframe(preview, width="stretch", hide_index=True)
+        st.dataframe(preview, use_container_width=True, hide_index=True)
     except (pd.errors.ParserError, UnicodeDecodeError, ValueError) as error:
         st.warning(f"No se pudo previsualizar el CSV: {error}")
 
