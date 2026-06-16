@@ -195,7 +195,7 @@ El pipeline batch separa explícitamente:
 ### 2.4 Análisis visual
 
 `GeoMIP/src/analyze_results.py` lee `resultados_Geometric.xlsx` y genera
-`phi_comparison.png`, comparando:
+`GeoMIP/results/phi_comparison.png`, comparando:
 
 - `Phi_Efecto`;
 - `Phi_Causa`.
@@ -563,6 +563,62 @@ un conjunto pequeño de particiones geométricamente informadas:
 $$
 k \in \{2,\dots,K_{\max}\}
 $$
+
+### 5.6 Pruebas de estrés multiescala
+
+Después de desacoplar $N$ desde `config.yaml`, el pipeline batch pudo validar
+redes de distintas hojas Excel sin asumir que la dimensión del sistema coincidía
+con la hoja activa. Las ejecuciones recientes muestran el siguiente
+comportamiento operativo:
+
+| Escala | Fuente Excel | Tiempo promedio por iteración | Memoria observada | Resultado operativo |
+| --- | --- | --- | --- | --- |
+| N=3 | Hoja 0 | <1 segundo | insignificante (~50 MB) | Instantáneo |
+| N=5 | Hoja 2 | ~4 segundos | estable (~100 MB) | Escala fluida |
+| N=15 | Hoja 6 | ~75 segundos | acotada (~180 MB) | Éxito con heurística acotada |
+
+Estos resultados no eliminan el crecimiento exponencial del espacio causal, pero
+sí confirman que la arquitectura actual sostiene evaluación multiescala cuando
+la búsqueda se mantiene acotada por heurística geométrica, límites de $k$ y
+procesamiento por lotes.
+
+### 5.7 Caso de borde y resiliencia
+
+Durante la validación multiescala se capturó de forma segura un error
+estructural:
+
+```text
+La solución integrada no contiene distribuciones concatenadas pares
+```
+
+El caso apareció en el Subsistema 19, donde el alcance/mecanismo colapsó a
+tamaño 1 dentro de una red leída con dimensión de 15 nodos
+(`estado=100000000000000`). La condición invalidó la expectativa estructural
+del cálculo integrado, que requiere distribuciones de causa y efecto
+concatenadas de forma par.
+
+El comportamiento relevante no es ocultar el error, sino aislarlo
+correctamente. Gracias al wrapper de seguridad, al aislamiento por timeout y a
+`SafeLogger`, el pipeline registró la fila problemática, evitó detener la
+ejecución global y completó de forma autónoma el lote completo de 25 sistemas.
+Esto confirma una propiedad práctica de resiliencia batch: los fallos locales se
+conservan como evidencia diagnóstica sin comprometer el procesamiento del resto
+del experimento.
+
+### 5.8 Límite físico-algorítmico observado
+
+El cuello de botella dominante sigue siendo el cálculo de distancia EMD mediante
+Programación Lineal. En un portátil convencional, el máximo práctico para
+evaluar un subsistema con todos los nodos interconectados y activos
+simultáneamente se ubica alrededor de $N=12$ o $N=13$, porque la matriz de costo
+de transporte crece exponencialmente con el espacio de estados.
+
+Esta cota no implica que el software quede limitado a universos pequeños. El
+pipeline puede procesar universos de $N=20$ o mayores cuando los subsistemas
+efectivamente evaluados son acotados, dispersos o restringidos en alcance activo.
+En otras palabras, el límite crítico depende del tamaño efectivo del problema
+EMD resuelto en cada fila, no únicamente del número nominal de nodos del universo
+Excel.
 
 ## 6. Validación y Regresión
 
