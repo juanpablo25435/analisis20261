@@ -1,5 +1,11 @@
 # Proyecto-20261 / KGeoMIP
 
+> [!IMPORTANT]
+> **ENTREGABLES Y CARPETA DE TRABAJO (Google Drive):**  
+> 🔗 [Acceder a la Carpeta Compartida de Google Drive](https://drive.google.com/drive/folders/1T9VukBYFVKpFDuDR4za6YnbwnpFVZd4m?usp=sharing)
+>
+> Este enlace contiene los manuales técnicos compilados, el PDF del manual, datasets, y documentación oficial del proyecto.
+
 Este repositorio contiene implementaciones y utilidades para el analisis de
 MIP/IIT con tres bloques arquitectonicos principales:
 
