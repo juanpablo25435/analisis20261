@@ -92,3 +92,35 @@ def test_k_geometric_builds_valid_partition_spec_from_agglomerative_clustering()
         assert np.isfinite(solution.perdida)
         assert solution.distribucion_subsistema.size == 6
         assert solution.distribucion_particion.size == 6
+
+
+def test_k_geometric_reuses_hamming_profile_across_k_candidates() -> None:
+    with _project_src_import(METHOD2_ROOT):
+        from src.controllers.manager import Manager
+        from src.controllers.strategies.k_geometric import KGeometricSIA
+        from src.models.base.application import aplicacion
+
+        class CountingKGeometricSIA(KGeometricSIA):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.hamming_matrix_calls = 0
+
+            def _matriz_hamming(self, perfiles):
+                self.hamming_matrix_calls += 1
+                return super()._matriz_hamming(perfiles)
+
+        aplicacion.profiler_habilitado = False
+        strategy = CountingKGeometricSIA(Manager(estado_inicial="000"))
+        strategy.distancia_metrica = _l1_distance
+
+        solution = strategy.aplicar_estrategia(
+            condiciones="111",
+            alcance="111",
+            mecanismo="111",
+            tpm=_small_tpm(),
+            k_max=3,
+        )
+
+        assert np.isfinite(solution.perdida)
+        assert strategy.hamming_matrix_calls == 1
+        assert strategy._perfil_geometrico_actual is None

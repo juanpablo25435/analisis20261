@@ -1,5 +1,6 @@
 import time
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
@@ -24,6 +25,16 @@ from shared_core.models.core.solution import Solution
 from shared_core.models.core.types import PartitionSpec
 
 
+@dataclass(frozen=True)
+class _GeometricProfile:
+    nodos: tuple[int, ...]
+    max_bloques: int
+    matriz_distancias: NDArray[np.float32]
+    clusters_por_k: dict[int, tuple[tuple[int, ...], ...]]
+    futuros: set[int]
+    presentes: set[int]
+
+
 class KGeometricSIA(SIA):
     """
     Heurística topológica KGeoMIP basada en clustering aglomerativo.
@@ -42,6 +53,7 @@ class KGeometricSIA(SIA):
             [NDArray[np.float32], NDArray[np.float32]], float
         ] = seleccionar_metrica(MetricDistance.EMD_INTEGRADA)
         self.logger = SafeLogger(KGEOMETRIC_STRAREGY_TAG)
+        self._perfil_geometrico_actual: _GeometricProfile | None = None
 
     def aplicar_estrategia(
         self,
@@ -52,6 +64,15 @@ class KGeometricSIA(SIA):
         k_max: int | None = None,
     ) -> Solution:
         """Evaluate KGeoMIP on a subsystem and return the best k-way partition.
+
+        The causal/geometric profile of the subsystem is built exactly once per
+        evaluation and stored in an evaluation-scoped cache. That profile
+        contains the binary node signatures, the Hamming transition-cost matrix
+        and the agglomerative hierarchy used by every candidate k. Building the
+        base profile over the hypercube costs O(n * 2^n) for n subsystem nodes;
+        reusing it avoids recalculating transition costs for k=2..k_max and
+        keeps the heuristic from enumerating the Bell-number space of all
+        partitions.
 
         Args:
             condiciones: Binary mask of conditioned present nodes.
@@ -65,59 +86,87 @@ class KGeometricSIA(SIA):
             partition distribution and a formatted partition string.
         """
         aplicacion.set_distancia_integrada()
-        self.sia_preparar_subsistema(
-            condiciones,
-            alcance,
-            mecanismo,
-            tpm if tpm is not None else self.sia_cargar_tpm(),
-        )
+        self._perfil_geometrico_actual = None
+        try:
+            self.sia_preparar_subsistema(
+                condiciones,
+                alcance,
+                mecanismo,
+                tpm if tpm is not None else self.sia_cargar_tpm(),
+            )
 
-        nodos, perfiles = self._extraer_perfiles_nodos()
-        max_bloques = len(nodos) if k_max is None else min(k_max, len(nodos))
-        if max_bloques < BASE_TWO:
+            perfil = self._preparar_perfil_geometrico(k_max)
+            self._perfil_geometrico_actual = perfil
+            if perfil.max_bloques < BASE_TWO:
+                return Solution(
+                    KGEOMETRIC_LABEL,
+                    DUMMY_EMD,
+                    self.sia_dists_marginales,
+                    np.array(DUMMY_ARR, dtype=np.float32),
+                    ERROR_PARTITION,
+                    tiempo_total=time.time() - self.sia_tiempo_inicio,
+                    hablar=False,
+                )
+
+            small_phi = np.inf
+            mejor_dist_marg: NDArray[np.float32] = np.array(DUMMY_ARR, dtype=np.float32)
+            mejor_spec: PartitionSpec | None = None
+
+            for k in range(BASE_TWO, perfil.max_bloques + 1):
+                clusters = perfil.clusters_por_k[k]
+                spec = self._spec_desde_clusters(
+                    clusters,
+                    perfil.nodos,
+                    perfil.futuros,
+                    perfil.presentes,
+                )
+                particion = self.sia_subsistema.aplicar_particion(spec)
+                dist_marginal = particion.distribucion_marginal()
+                emd_value = self.distancia_metrica(
+                    dist_marginal,
+                    self.sia_dists_marginales,
+                )
+
+                if emd_value < small_phi:
+                    small_phi = emd_value
+                    mejor_dist_marg = dist_marginal
+                    mejor_spec = spec
+
+            particion_fmt = (
+                self._formatear_particion(mejor_spec)
+                if mejor_spec is not None
+                else ERROR_PARTITION
+            )
             return Solution(
                 KGEOMETRIC_LABEL,
-                DUMMY_EMD,
+                float(small_phi),
                 self.sia_dists_marginales,
-                np.array(DUMMY_ARR, dtype=np.float32),
-                ERROR_PARTITION,
+                mejor_dist_marg,
+                particion_fmt,
                 tiempo_total=time.time() - self.sia_tiempo_inicio,
                 hablar=False,
             )
+        finally:
+            self._perfil_geometrico_actual = None
 
-        matriz_distancias = self._matriz_hamming(perfiles)
-        futuros = set(int(indice) for indice in self.sia_subsistema.indices_ncubos)
-        presentes = set(int(dim) for dim in self.sia_subsistema.dims_ncubos)
-
-        small_phi = np.inf
-        mejor_dist_marg: NDArray[np.float32] = np.array(DUMMY_ARR, dtype=np.float32)
-        mejor_spec: PartitionSpec | None = None
-
-        for k in range(BASE_TWO, max_bloques + 1):
-            clusters = self._clusterizar_aglomerativo(matriz_distancias, k)
-            spec = self._spec_desde_clusters(clusters, nodos, futuros, presentes)
-            particion = self.sia_subsistema.aplicar_particion(spec)
-            dist_marginal = particion.distribucion_marginal()
-            emd_value = self.distancia_metrica(dist_marginal, self.sia_dists_marginales)
-
-            if emd_value < small_phi:
-                small_phi = emd_value
-                mejor_dist_marg = dist_marginal
-                mejor_spec = spec
-
-        particion_fmt = (
-            self._formatear_particion(mejor_spec)
-            if mejor_spec is not None
-            else ERROR_PARTITION
-        )
-        return Solution(
-            KGEOMETRIC_LABEL,
-            float(small_phi),
-            self.sia_dists_marginales,
-            mejor_dist_marg,
-            particion_fmt,
-            tiempo_total=time.time() - self.sia_tiempo_inicio,
-            hablar=False,
+    def _preparar_perfil_geometrico(self, k_max: int | None) -> _GeometricProfile:
+        nodos, perfiles = self._extraer_perfiles_nodos()
+        max_bloques = len(nodos) if k_max is None else min(k_max, len(nodos))
+        matriz_distancias = np.empty((len(nodos), len(nodos)), dtype=np.float32)
+        clusters_por_k: dict[int, tuple[tuple[int, ...], ...]] = {}
+        if max_bloques >= BASE_TWO:
+            matriz_distancias = self._matriz_hamming(perfiles)
+            clusters_por_k = self._clusterizar_aglomerativo_por_k(
+                matriz_distancias,
+                max_bloques,
+            )
+        return _GeometricProfile(
+            nodos=nodos,
+            max_bloques=max_bloques,
+            matriz_distancias=matriz_distancias,
+            clusters_por_k=clusters_por_k,
+            futuros=set(int(indice) for indice in self.sia_subsistema.indices_ncubos),
+            presentes=set(int(dim) for dim in self.sia_subsistema.dims_ncubos),
         )
 
     def _extraer_perfiles_nodos(self) -> tuple[tuple[int, ...], NDArray[np.float32]]:
@@ -176,8 +225,28 @@ class KGeometricSIA(SIA):
         matriz_distancias: NDArray[np.float32],
         k: int,
     ) -> tuple[tuple[int, ...], ...]:
+        total_clusters = matriz_distancias.shape[0]
+        if k >= total_clusters:
+            return tuple((idx,) for idx in range(total_clusters))
+        k_min = max(k, 1)
+        return self._clusterizar_aglomerativo_por_k(
+            matriz_distancias,
+            k,
+            k_min=k_min,
+        )[k_min]
+
+    def _clusterizar_aglomerativo_por_k(
+        self,
+        matriz_distancias: NDArray[np.float32],
+        k_max: int,
+        k_min: int = BASE_TWO,
+    ) -> dict[int, tuple[tuple[int, ...], ...]]:
         clusters = [tuple([idx]) for idx in range(matriz_distancias.shape[0])]
-        while len(clusters) > k:
+        clusters_por_k: dict[int, tuple[tuple[int, ...], ...]] = {}
+        if k_min <= len(clusters) <= k_max:
+            clusters_por_k[len(clusters)] = tuple(clusters)
+
+        while len(clusters) > k_min:
             mejor_par = (0, 1)
             mejor_distancia = np.inf
             for i in range(len(clusters)):
@@ -200,7 +269,9 @@ class KGeometricSIA(SIA):
             ]
             clusters.append(fusion)
             clusters.sort(key=lambda cluster: cluster[0])
-        return tuple(clusters)
+            if k_min <= len(clusters) <= k_max:
+                clusters_por_k[len(clusters)] = tuple(clusters)
+        return clusters_por_k
 
     def _distancia_promedio(
         self,
